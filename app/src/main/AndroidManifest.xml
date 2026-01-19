@@ -4,21 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions -->
-    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- AR Features -->
-    <uses-feature
-        android:name="android.hardware.camera.ar"
-        android:required="true" />
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="true" />
-    <uses-feature
-        android:name="android.hardware.camera.autofocus"
-        android:required="true" />
-
 
     <application
         android:allowBackup="true"
@@ -29,13 +16,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MultiSetVPS"
-        android:usesCleartextTraffic="false"
-        tools:targetApi="31">
-
-        <!-- AR Core Meta Data -->
-        <meta-data
-            android:name="com.google.ar.core"
-            android:value="required" />
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MainActivity"
@@ -47,10 +28,16 @@
             </intent-filter>
         </activity>
 
+        <!-- AR Localization Activities -->
         <activity
-            android:name=".ar.ARActivity"
+            android:name=".ui.SingleFrameARActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
-            android:theme="@style/Theme.MultiSetVPS.NoActionBar" />
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.MultiFrameARActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="false" />
 
     </application>
 

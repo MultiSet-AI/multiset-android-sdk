@@ -7,7 +7,24 @@
     <string name="ready_to_localize">Ready to localize</string>
     <string name="reset">Reset</string>
     <string name="localize">Localize</string>
-    <string name="multiset_vps_demo">MultiSet VPS Demo</string>
+    <string name="multiset_vps_demo">MultiSet VPS </string>
     <string name="ready_to_authenticate">Ready to authenticate</string>
     <string name="auth">Auth</string>
+
+    <!-- Localization UI -->
+    <string name="localization_instruction">Look forward and\nmove device slowly</string>
+    <string name="localizing">Localizing…</string>
+    <string name="capturing_frames">Capturing frames…</string>
+    <string name="ar_background">AR Background</string>
+    <string name="phone_scanning">Phone scanning animation</string>
+    <string name="localization_success">Localization Success</string>
+    <string name="localization_failed">Localization Failed</string>
+
+    <!-- Single/Multi Frame Localization -->
+    <string name="single_frame_localization">Single Frame Localization</string>
+    <string name="multi_frame_localization">Multi Frame Localization</string>
+    <string name="capture">Capture</string>
+    <string name="capturing">Capturing…</string>
+    <string name="single_frame_instruction">Point at a scanned area\nand tap Capture</string>
+
 </resources>
