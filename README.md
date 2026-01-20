@@ -73,8 +73,6 @@ Add the SDK and required dependencies to your app module's build configuration. 
 - Kotlin Coroutines
 - AndroidX libraries
 
-Refer to `SDK_INTEGRATION_GUIDE.md` for the complete dependency list.
-
 ### Step 3: Add JitPack Repository
 
 The Sceneform library requires the JitPack repository in your project settings.
@@ -156,24 +154,6 @@ The SDK provides extensive customization through the `LocalizationConfig` object
 
 ---
 
-## Localization Modes
-
-### Single-Frame Mode
-
-- Captures one image for localization
-- Faster response time
-- Best for quick position fixes
-- Uses `/v1/vps/map/query-form` endpoint
-
-### Multi-Frame Mode
-
-- Captures multiple images (4-6 frames)
-- Higher accuracy
-- Best for precise positioning
-- Uses `/v1/vps/map/multi-image-query` endpoint
-
----
-
 ## SDK Callbacks
 
 Implement the callback interface to receive SDK events:
@@ -244,47 +224,6 @@ The SDK requires the following permissions:
 Location permissions are only required if using GPS-assisted localization.
 
 ---
-
-## Troubleshooting
-
-### Authentication Issues
-
-- Verify Client ID and Secret are correct
-- Check internet connectivity
-- Ensure credentials are active on the developer portal
-
-### Localization Failures
-
-- Ensure you are in the mapped environment
-- Check lighting conditions (avoid extreme dark/bright)
-- Move device slowly for better tracking
-- Verify map code is correct
-- If using geo hint, ensure GPS coordinates match mapped area
-
-### ARCore Issues
-
-- Install or update Google Play Services for AR
-- Check device compatibility at developers.google.com/ar/devices
-- Ensure camera permissions are granted
-
-### Build Issues
-
-- Verify ARCore version is 1.25.0 for Sceneform compatibility
-- Enable `useLegacyPackaging = true` for JNI libraries
-- Add JitPack repository for Sceneform
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| `SDK_INTEGRATION_GUIDE.md` | Detailed integration instructions with dependencies |
-| `SDK_LIBRARY_ARCHITECTURE.md` | Internal SDK architecture reference |
-| `multiset.properties.template` | Credentials configuration template |
-
----
-
 ## Support
 
 - **Documentation:** https://developer.multiset.ai/docs
