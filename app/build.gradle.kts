@@ -91,6 +91,13 @@ android {
         viewBinding = true
         buildConfig = true
     }
+
+    packaging {
+        jniLibs {
+            // Required for 16KB page size compatibility
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {

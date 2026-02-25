@@ -15,9 +15,9 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Localization Overlay (shown during frame capture) -->
+    <!-- Single-Frame Capture Overlay (shown during single-frame capture) -->
     <FrameLayout
-        android:id="@+id/localizationOverlay"
+        android:id="@+id/singleFrameOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CC000000"
@@ -39,15 +39,88 @@
                 android:layout_height="48dp"
                 android:indeterminateTint="@color/primary" />
 
-            <!-- Status Text -->
             <TextView
-                android:id="@+id/localizingStatusText"
+                android:id="@+id/singleFrameStatusText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:text="@string/capturing"
                 android:textColor="@android:color/white"
                 android:textSize="16sp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- Multi-Frame Capture Overlay (shown during multi-frame capture) -->
+    <FrameLayout
+        android:id="@+id/multiFrameOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <!-- Animation Container -->
+            <FrameLayout
+                android:id="@+id/animationContainer"
+                android:layout_width="200dp"
+                android:layout_height="100dp"
+                android:layout_marginBottom="20dp">
+
+                <!-- Background AR Image -->
+                <ImageView
+                    android:id="@+id/bgArImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/bg_ar"
+                    android:contentDescription="@string/ar_background" />
+
+                <!-- Animated Phone Image -->
+                <ImageView
+                    android:id="@+id/phoneImage"
+                    android:layout_width="58dp"
+                    android:layout_height="77dp"
+                    android:layout_gravity="center_vertical|start"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/phone_image"
+                    android:contentDescription="@string/phone_scanning" />
+
+            </FrameLayout>
+
+            <!-- Instruction Text -->
+            <TextView
+                android:id="@+id/instructionText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/localization_instruction"
+                android:textColor="#AAAAAA"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:lineSpacingExtra="4dp" />
+
+            <!-- Status Text -->
+            <TextView
+                android:id="@+id/multiFrameStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/capturing_frames"
+                android:textColor="@android:color/white"
+                android:textSize="14sp" />
 
         </LinearLayout>
 
@@ -138,14 +211,14 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Capture/Localize Button (bottom right) - Always visible -->
+    <!-- Localize Button (bottom right) - Always visible -->
     <ImageView
-        android:id="@+id/captureButton"
+        android:id="@+id/localizeButton"
         android:layout_width="72dp"
         android:layout_height="72dp"
         android:layout_marginEnd="24dp"
         android:layout_marginBottom="24dp"
-        android:contentDescription="@string/capture"
+        android:contentDescription="@string/localize"
         android:src="@drawable/capture_button"
         android:scaleType="fitCenter"
         android:visibility="visible"

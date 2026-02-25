@@ -1,8 +1,7 @@
 [versions]
 agp = "8.10.0"
-core = "1.25.0"
-coreVersion = "1.21.0"
-kotlin = "2.0.21"
+core = "1.46.0"
+kotlin = "2.2.0"
 coreKtx = "1.16.0"
 junit = "4.14-SNAPSHOT"
 junitVersion = "1.2.1"
@@ -30,7 +29,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 
 #ARCore
 core = { module = "com.google.ar:core", version.ref = "core" }
-sceneform = { module = "com.github.SceneView:sceneform-android", version.ref = "coreVersion" }
+sceneform = { module = "com.github.RGregat:sceneform-android", version = "1.24.6" }
 
 #Networking
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }

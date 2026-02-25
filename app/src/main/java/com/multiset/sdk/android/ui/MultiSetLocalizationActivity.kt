@@ -33,11 +33,13 @@ import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.Color
 import com.google.ar.sceneform.rendering.Light
 import com.google.ar.sceneform.ux.ArFragment
+import com.multiset.sdk.GeoCoordinates
+import com.multiset.sdk.LocalizationMode
 import com.multiset.sdk.LocalizationResult
 import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.android.LocalizationConfig
 import com.multiset.sdk.android.R
-import com.multiset.sdk.android.databinding.ActivityMultiFrameArBinding
+import com.multiset.sdk.android.databinding.ActivityLocalizationBinding
 import com.multiset.sdk.internal.SDKConfigInternal
 import com.multiset.sdk.internal.ar.GizmoNode
 import com.multiset.sdk.internal.ar.ImageData
@@ -49,9 +51,9 @@ import com.multiset.sdk.internal.mesh.MeshRenderer
 import com.multiset.sdk.internal.mesh.MeshVisualizationOption
 import com.multiset.sdk.internal.network.LocalizationSuccessResponse
 import com.multiset.sdk.internal.network.NetworkManager
+import com.multiset.sdk.internal.network.SingleFrameLocalizationResponse
 import com.multiset.sdk.internal.utils.GpsCoordinateHandler
 import com.multiset.sdk.internal.utils.GpsCoordinatesInternal
-import com.multiset.sdk.android.utils.NetworkUtils
 import com.multiset.sdk.internal.utils.Util.Companion.createMatrixFromQuaternion
 import com.multiset.sdk.internal.utils.Util.Companion.createTransformMatrix
 import com.multiset.sdk.internal.utils.Util.Companion.extractPosition
@@ -66,18 +68,22 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
 /**
- * Multi-frame AR localization activity.
- * Captures multiple frames and sends them for more accurate localization.
+ * Unified AR localization activity supporting both single-frame and multi-frame modes.
+ * The localization mode is passed via intent extra [EXTRA_LOCALIZATION_MODE].
  */
-class MultiFrameARActivity : AppCompatActivity() {
+class MultiSetLocalizationActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MultiSetSDK"
+        const val EXTRA_LOCALIZATION_MODE = "localization_mode"
     }
 
-    private lateinit var binding: ActivityMultiFrameArBinding
+    private lateinit var binding: ActivityLocalizationBinding
     private lateinit var arFragment: ArFragment
     private var gizmoNode: GizmoNode? = null
+
+    // Localization mode
+    private var localizationMode: LocalizationMode = LocalizationMode.MULTI_FRAME
 
     // Configuration
     private var localizationConfig = LocalizationConfigInternal.default()
@@ -92,7 +98,10 @@ class MultiFrameARActivity : AppCompatActivity() {
     private var gpsCoordinateHandler: GpsCoordinateHandler? = null
     private var capturedGpsCoordinates: GpsCoordinatesInternal? = null
 
-    // Frame capture data
+    // Single-frame: camera pose captured at time of frame capture
+    private var capturedCameraPose: CameraPose? = null
+
+    // Multi-frame: captured frames and upload data
     private val capturedImages = mutableListOf<ImageData>()
     private var uploadData: UploadData? = null
 
@@ -107,10 +116,10 @@ class MultiFrameARActivity : AppCompatActivity() {
     private var backgroundLocalizationJob: Job? = null
     private var localizationJob: Job? = null
 
-    // Animation
+    // Multi-frame animation
     private var phoneAnimator: ObjectAnimator? = null
 
-    // GPS status handlers
+    // GPS status update handler
     private val gpsStatusHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val gpsStatusRunnable = object : Runnable {
         override fun run() {
@@ -119,16 +128,22 @@ class MultiFrameARActivity : AppCompatActivity() {
         }
     }
 
+    // GPS wait handler for auto-localization
     private var gpsWaitAttempts = 0
     private val maxGpsWaitAttempts = 10
     private val gpsWaitRunnable = object : Runnable {
         override fun run() {
             gpsWaitAttempts++
-            if (hasValidGpsCoordinates()) {
+            val hasValidCoordinates = hasValidGpsCoordinates()
+
+            if (hasValidCoordinates) {
+                Log.d(TAG, "GPS coordinates available, starting auto-localization")
                 startAutoLocalizationNow()
             } else if (gpsWaitAttempts >= maxGpsWaitAttempts) {
+                Log.w(TAG, "GPS timeout after ${maxGpsWaitAttempts}s, starting localization without GPS")
                 startAutoLocalizationNow()
             } else {
+                Log.d(TAG, "Waiting for GPS... attempt $gpsWaitAttempts/$maxGpsWaitAttempts")
                 gpsStatusHandler.postDelayed(this, 1000)
             }
         }
@@ -138,14 +153,17 @@ class MultiFrameARActivity : AppCompatActivity() {
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false ||
-                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
 
-        if (granted) {
+        if (fineLocationGranted || coarseLocationGranted) {
+            Log.d(TAG, "Location permission granted")
             initializeGps()
             startGpsStatusUpdates()
             waitForGpsAndStartLocalization()
         } else {
+            Log.w(TAG, "Location permission denied - geoHint will not be available")
+            updateGpsIndicator(false)
             if (localizationConfig.autoLocalize) {
                 startAutoLocalizationDelayed(1000L)
             }
@@ -163,20 +181,28 @@ class MultiFrameARActivity : AppCompatActivity() {
             return
         }
 
-        binding = ActivityMultiFrameArBinding.inflate(layoutInflater)
+        // Read localization mode from intent
+        val modeName = intent.getStringExtra(EXTRA_LOCALIZATION_MODE)
+        localizationMode = try {
+            LocalizationMode.valueOf(modeName ?: LocalizationMode.MULTI_FRAME.name)
+        } catch (e: IllegalArgumentException) {
+            LocalizationMode.MULTI_FRAME
+        }
+
+        binding = ActivityLocalizationBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // Load config from app's LocalizationConfig
         LocalizationConfig.validate()
+        Log.d(TAG, "LocalizationConfig.autoLocalize = ${LocalizationConfig.autoLocalize}")
+        Log.d(TAG, "LocalizationConfig.enableGeoHint = ${LocalizationConfig.enableGeoHint}")
 
         // If geoHint and geoCoordinatesInResponse are both enabled, disable silent retry
-        // to show failure toast when geo-based localization fails
-        val useFirstLocalizationUntilSuccess =
-            if (LocalizationConfig.enableGeoHint && LocalizationConfig.includeGeoCoordinatesInResponse) {
-                false
-            } else {
-                LocalizationConfig.firstLocalizationUntilSuccess
-            }
+        val useFirstLocalizationUntilSuccess = if (LocalizationConfig.enableGeoHint && LocalizationConfig.includeGeoCoordinatesInResponse) {
+            false
+        } else {
+            LocalizationConfig.firstLocalizationUntilSuccess
+        }
 
         localizationConfig = LocalizationConfigInternal(
             autoLocalize = LocalizationConfig.autoLocalize,
@@ -194,10 +220,13 @@ class MultiFrameARActivity : AppCompatActivity() {
             geoCoordinatesInResponse = LocalizationConfig.includeGeoCoordinatesInResponse,
             imageQuality = LocalizationConfig.imageQuality
         )
+        Log.d(TAG, "localizationConfig.autoLocalize = ${localizationConfig.autoLocalize}")
 
         setupAR()
         setupUI()
 
+        val modeLabel = if (localizationMode == LocalizationMode.SINGLE_FRAME) "single-frame" else "multi-frame"
+        Log.d(TAG, "MultiSetLocalizationActivity started in $modeLabel mode with config: $localizationConfig")
     }
 
     private fun setupAR() {
@@ -256,6 +285,19 @@ class MultiFrameARActivity : AppCompatActivity() {
             localRotation = Quaternion.axisAngle(Vector3(1f, 0f, 0f), -45f)
         }
         scene.addChild(sunLightNode)
+
+        val fillLight = Light.builder(Light.Type.DIRECTIONAL)
+            .setColor(Color(0.9f, 0.9f, 1.0f))
+            .setIntensity(50000f)
+            .setShadowCastingEnabled(false)
+            .build()
+
+        val fillLightNode = Node().apply {
+            light = fillLight
+            localPosition = Vector3(0f, 5f, -5f)
+            localRotation = Quaternion.axisAngle(Vector3(1f, 0f, 0f), 45f)
+        }
+        scene.addChild(fillLightNode)
     }
 
     private fun initializeMeshComponents() {
@@ -267,15 +309,31 @@ class MultiFrameARActivity : AppCompatActivity() {
                 else
                     MeshVisualizationOption.NO_MESH
             }
-            meshRenderer = MeshRenderer(this)
+            meshRenderer = MeshRenderer(this).apply {
+                setCameraPositionProvider { getCurrentCameraWorldPosition() }
+            }
+            Log.d(TAG, "Mesh components initialized")
+        }
+    }
+
+    private fun getCurrentCameraWorldPosition(): Vector3? {
+        return try {
+            val frame = arFragment.arSceneView.arFrame ?: return null
+            if (frame.camera.trackingState != TrackingState.TRACKING) return null
+            val pose = frame.camera.pose
+            Vector3(pose.tx(), pose.ty(), pose.tz())
+        } catch (e: Exception) {
+            null
         }
     }
 
     private fun initializeLocalization() {
+        Log.d(TAG, "initializeLocalization: passGeoPose=${localizationConfig.passGeoPose}, autoLocalize=${localizationConfig.autoLocalize}")
         if (localizationConfig.passGeoPose) {
             checkAndRequestLocationPermission()
         } else {
             if (localizationConfig.autoLocalize) {
+                Log.d(TAG, "Starting auto-localization...")
                 startAutoLocalizationDelayed(1000L)
             } else {
                 Log.d(TAG, "Auto-localization disabled, waiting for manual trigger")
@@ -345,10 +403,10 @@ class MultiFrameARActivity : AppCompatActivity() {
 
     private fun handleTrackingStateChange(newState: TrackingState) {
         when (newState) {
-            TrackingState.TRACKING -> {}
+            TrackingState.TRACKING -> { /* Tracking recovered */ }
             TrackingState.PAUSED, TrackingState.STOPPED -> {
-                // Only trigger relocalization if first localization has already been made
                 if (!isLocalizing && !isFirstLocalization) {
+                    Log.d(TAG, "AR Tracking Lost - Triggering relocalization")
                     lifecycleScope.launch {
                         delay(1000)
                         if (!isLocalizing && !isFirstLocalization) {
@@ -368,7 +426,10 @@ class MultiFrameARActivity : AppCompatActivity() {
     // ==================== Localization ====================
 
     private fun localizeFrame() {
-        if (isLocalizing) return
+        if (isLocalizing) {
+            Log.w(TAG, "Localization already in progress")
+            return
+        }
 
         val frame = arFragment.arSceneView.arFrame
         if (frame == null || frame.camera.trackingState != TrackingState.TRACKING) {
@@ -379,7 +440,11 @@ class MultiFrameARActivity : AppCompatActivity() {
         }
 
         isBackgroundLocalizationRequest = false
-        startLocalization()
+
+        when (localizationMode) {
+            LocalizationMode.SINGLE_FRAME -> startSingleFrameLocalization(frame)
+            LocalizationMode.MULTI_FRAME -> startMultiFrameLocalization()
+        }
     }
 
     private fun startAutoLocalizationDelayed(delayMs: Long) {
@@ -401,7 +466,231 @@ class MultiFrameARActivity : AppCompatActivity() {
         startAutoLocalizationDelayed(500L)
     }
 
-    private fun startLocalization() {
+    // ==================== Single-Frame Localization ====================
+
+    private fun startSingleFrameLocalization(frame: Frame) {
+        isLocalizing = true
+
+        Log.d(TAG, "Starting single frame localization (background: $isBackgroundLocalizationRequest)")
+
+        capturedCameraPose = getCurrentCameraPose(frame)
+
+        if (localizationConfig.passGeoPose && gpsCoordinateHandler != null) {
+            capturedGpsCoordinates = gpsCoordinateHandler?.getCurrentCoordinates()
+            if (capturedGpsCoordinates?.isValid() == true) {
+                Log.d(TAG, "GPS coordinates captured: ${capturedGpsCoordinates?.toGeoHintString()}")
+            } else {
+                capturedGpsCoordinates = null
+            }
+        } else {
+            capturedGpsCoordinates = null
+        }
+
+        if (isBackgroundLocalizationRequest) {
+            showBackgroundProgress()
+        } else {
+            showFrameCaptureOverlay()
+            phoneAnimator?.start()
+        }
+
+        lifecycleScope.launch {
+            try {
+                val imageData = captureSingleFrame(frame)
+                if (imageData != null) {
+                    sendSingleFrameRequest(imageData)
+                } else {
+                    handleLocalizationFailure("Failed to capture frame")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during capture: ${e.message}", e)
+                handleLocalizationFailure("Capture failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun getCurrentCameraPose(frame: Frame): CameraPose {
+        val pose = frame.camera.pose
+        val position = Vector3(pose.tx(), pose.ty(), pose.tz())
+        var rotation = Quaternion(pose.qx(), pose.qy(), pose.qz(), pose.qw())
+
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (!isLandscape) {
+            val orientationCorrection = Quaternion.axisAngle(Vector3(0f, 0f, 1f), 90f)
+            rotation = Quaternion.multiply(rotation, orientationCorrection)
+        }
+
+        return CameraPose(position, rotation)
+    }
+
+    private suspend fun captureSingleFrame(frame: Frame): CapturedImageData? {
+        // Acquire camera image on the main thread immediately —
+        // ARCore frames become stale within one frame interval (~33ms)
+        val image: Image
+        try {
+            image = frame.acquireCameraImage() ?: return null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire camera image: ${e.message}", e)
+            return null
+        }
+
+        return withContext(Dispatchers.Default) {
+            try {
+                val originalWidth = image.width
+                val originalHeight = image.height
+
+                val rawBitmap = imageProcessor.imageToRgbBitmap(image)
+                image.close()
+
+                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                val finalBitmap: Bitmap = if (!isLandscape) {
+                    rotateBitmap(rawBitmap, 90f)
+                } else {
+                    rawBitmap
+                }
+
+                val processedData = imageProcessor.processImageForLocalization(
+                    finalBitmap,
+                    frame,
+                    this@MultiSetLocalizationActivity,
+                    originalWidth,
+                    originalHeight
+                )
+
+                val outputStream = ByteArrayOutputStream()
+                val compressResult = processedData.bitmap.compress(
+                    Bitmap.CompressFormat.JPEG,
+                    localizationConfig.imageQuality,
+                    outputStream
+                )
+
+                if (!compressResult) return@withContext null
+
+                CapturedImageData(
+                    imageBytes = outputStream.toByteArray(),
+                    width = processedData.width,
+                    height = processedData.height,
+                    fx = processedData.fx,
+                    fy = processedData.fy,
+                    px = processedData.px,
+                    py = processedData.py
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in captureSingleFrame: ${e.message}", e)
+                null
+            } finally {
+                try { image.close() } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private suspend fun sendSingleFrameRequest(imageData: CapturedImageData) {
+        val token = MultiSetSDK.getInternalManager()?.getToken()
+        if (token == null) {
+            handleLocalizationFailure("No auth token")
+            return
+        }
+
+        try {
+            withContext(Dispatchers.IO) {
+                val parameters = buildCommonParameters(
+                    fx = imageData.fx, fy = imageData.fy,
+                    px = imageData.px, py = imageData.py,
+                    width = imageData.width, height = imageData.height
+                )
+
+                Log.d(TAG, "Sending single frame localization request")
+
+                val response = networkManager.sendSingleFrameLocalizationRequest(
+                    token,
+                    parameters,
+                    imageData.imageBytes
+                )
+
+                withContext(Dispatchers.Main) {
+                    handleSingleFrameResponse(response)
+                }
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Log.e(TAG, "Localization request failed: ${e.message}", e)
+                handleLocalizationFailure("API error: ${e.message}")
+            }
+        }
+    }
+
+    private fun handleSingleFrameResponse(response: SingleFrameLocalizationResponse) {
+        isLocalizing = false
+
+        val responsePosition = response.position
+        val responseRotation = response.rotation
+
+        if (response.poseFound && responsePosition != null && responseRotation != null) {
+            if (localizationConfig.confidenceCheck) {
+                val confidence = response.confidence ?: 1.0f
+                if (confidence < localizationConfig.confidenceThreshold) {
+                    Log.w(TAG, "Confidence $confidence below threshold")
+                    handleLocalizationFailure("Low confidence: $confidence")
+                    return
+                }
+            }
+
+            val estimatedPosition = Vector3(responsePosition.x, responsePosition.y, responsePosition.z)
+            val estimatedRotation = Quaternion(responseRotation.x, responseRotation.y, responseRotation.z, responseRotation.w)
+
+            val resultPose: ResultPose
+            val cameraPose = capturedCameraPose
+
+            if (cameraPose != null) {
+                resultPose = poseHandler(estimatedPosition, estimatedRotation, cameraPose.position, cameraPose.rotation)
+            } else {
+                resultPose = ResultPose(estimatedPosition, estimatedRotation)
+            }
+
+            if (isFirstLocalization) {
+                isFirstLocalization = false
+            }
+
+            updateGizmoPosition(resultPose.position, resultPose.rotation)
+
+            if (localizationConfig.meshVisualization) {
+                loadMeshAfterLocalization(response.mapCodes)
+            }
+
+            if (localizationConfig.showAlerts && !isBackgroundLocalizationRequest) {
+                showToast(getString(R.string.localization_success))
+            }
+
+            val mapCode = response.mapCodes.firstOrNull() ?: ""
+            val publicResult = LocalizationResult(
+                mapCode = mapCode,
+                mapCodes = response.mapCodes,
+                position = floatArrayOf(resultPose.position.x, resultPose.position.y, resultPose.position.z),
+                rotation = floatArrayOf(resultPose.rotation.x, resultPose.rotation.y, resultPose.rotation.z, resultPose.rotation.w),
+                confidence = response.confidence,
+                geoCoordinates = null
+            )
+            MultiSetSDK.getCallback()?.onLocalizationSuccess(publicResult)
+
+            // Keep the localization animation visible for 1 second before hiding
+            phoneAnimator?.cancel()
+            lifecycleScope.launch {
+                delay(1000)
+                hideAllOverlays()
+            }
+
+            Log.d(TAG, "Single frame localization successful!")
+        } else {
+            handleLocalizationFailure("Pose not found")
+        }
+
+        if (localizationConfig.backgroundLocalization) {
+            scheduleBackgroundLocalization()
+        }
+    }
+
+    // ==================== Multi-Frame Localization ====================
+
+    private fun startMultiFrameLocalization() {
         capturedImages.clear()
         uploadData = null
         isLocalizing = true
@@ -437,13 +726,13 @@ class MultiFrameARActivity : AppCompatActivity() {
                 continue
             }
 
-            val imageData = captureAndProcessFrame(frame)
+            val imageData = captureMultiFrame(frame)
             if (imageData != null) {
                 capturedImages.add(imageData)
+                Log.d(TAG, "Frame ${capturedImages.size}/$numberOfFrames captured")
 
                 runOnUiThread {
-                    binding.localizingStatusText.text =
-                        "Capturing frames (${capturedImages.size}/$numberOfFrames)..."
+                    binding.multiFrameStatusText.text = "Capturing frames (${capturedImages.size}/$numberOfFrames)..."
                 }
             }
 
@@ -457,29 +746,36 @@ class MultiFrameARActivity : AppCompatActivity() {
                 phoneAnimator?.cancel()
                 showApiLoadingOverlay()
             }
-            sendLocalizationRequest()
+            sendMultiFrameRequest()
         } else {
             handleLocalizationFailure("Failed to capture enough frames")
         }
     }
 
-    private suspend fun captureAndProcessFrame(frame: Frame): ImageData? =
-        withContext(Dispatchers.Default) {
-            var image: Image? = null
+    private suspend fun captureMultiFrame(frame: Frame): ImageData? {
+        // Acquire camera image and pose on the main thread immediately —
+        // ARCore frames become stale within one frame interval (~33ms)
+        val pose = frame.camera.pose
+        val position = Vector3(pose.tx(), pose.ty(), pose.tz())
+        var rotation = Quaternion(pose.qx(), pose.qy(), pose.qz(), pose.qw())
+
+        val image: Image
+        try {
+            image = frame.acquireCameraImage() ?: return null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire camera image: ${e.message}", e)
+            return null
+        }
+
+        return withContext(Dispatchers.Default) {
             try {
-                val pose = frame.camera.pose
-                val position = Vector3(pose.tx(), pose.ty(), pose.tz())
-                var rotation = Quaternion(pose.qx(), pose.qy(), pose.qz(), pose.qw())
-
-                image = frame.acquireCameraImage() ?: return@withContext null
-
                 val originalWidth = image.width
                 val originalHeight = image.height
 
                 val rawBitmap = imageProcessor.imageToRgbBitmap(image)
+                image.close()
 
-                val isLandscape =
-                    resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                 val finalBitmap: Bitmap
                 if (!isLandscape) {
                     finalBitmap = rotateBitmap(rawBitmap, 90f)
@@ -492,7 +788,7 @@ class MultiFrameARActivity : AppCompatActivity() {
                 val processedData = imageProcessor.processImageForLocalization(
                     finalBitmap,
                     frame,
-                    this@MultiFrameARActivity,
+                    this@MultiSetLocalizationActivity,
                     originalWidth,
                     originalHeight
                 )
@@ -509,11 +805,7 @@ class MultiFrameARActivity : AppCompatActivity() {
                 }
 
                 val outputStream = ByteArrayOutputStream()
-                processedData.bitmap.compress(
-                    Bitmap.CompressFormat.JPEG,
-                    localizationConfig.imageQuality,
-                    outputStream
-                )
+                processedData.bitmap.compress(Bitmap.CompressFormat.JPEG, localizationConfig.imageQuality, outputStream)
 
                 ImageData(
                     imageBytes = outputStream.toByteArray(),
@@ -528,27 +820,15 @@ class MultiFrameARActivity : AppCompatActivity() {
                     )
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Exception in captureAndProcessFrame: ${e.message}", e)
+                Log.e(TAG, "Exception in captureMultiFrame: ${e.message}", e)
                 null
             } finally {
-                image?.close()
+                try { image.close() } catch (_: Exception) {}
             }
         }
-
-    private fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
-        val matrix = android.graphics.Matrix().apply { postRotate(degrees) }
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
-    private suspend fun sendLocalizationRequest() {
-        if (!NetworkUtils.isInternetAvailable(this)) {
-            withContext(Dispatchers.Main) {
-                showToast("No internet connection")
-            }
-            handleLocalizationFailure("No internet connection")
-            return
-        }
-
+    private suspend fun sendMultiFrameRequest() {
         val token = MultiSetSDK.getInternalManager()?.getToken()
         if (token == null || uploadData == null || capturedImages.isEmpty()) {
             handleLocalizationFailure("Missing data")
@@ -557,37 +837,11 @@ class MultiFrameARActivity : AppCompatActivity() {
 
         try {
             withContext(Dispatchers.IO) {
-                val parameters = mutableMapOf(
-                    "isRightHanded" to "true",
-                    "fx" to uploadData!!.fx.toString(),
-                    "fy" to uploadData!!.fy.toString(),
-                    "px" to uploadData!!.px.toString(),
-                    "py" to uploadData!!.py.toString(),
-                    "width" to uploadData!!.width.toString(),
-                    "height" to uploadData!!.height.toString()
+                val parameters = buildCommonParameters(
+                    fx = uploadData!!.fx, fy = uploadData!!.fy,
+                    px = uploadData!!.px, py = uploadData!!.py,
+                    width = uploadData!!.width, height = uploadData!!.height
                 )
-
-                when (SDKConfigInternal.getActiveMapType()) {
-                    SDKConfigInternal.MapType.MAP -> {
-                        if (SDKConfigInternal.MAP_CODE.isNotEmpty()) {
-                            parameters["mapCode"] = SDKConfigInternal.MAP_CODE
-                        }
-                    }
-
-                    SDKConfigInternal.MapType.MAP_SET -> {
-                        if (SDKConfigInternal.MAP_SET_CODE.isNotEmpty()) {
-                            parameters["mapSetCode"] = SDKConfigInternal.MAP_SET_CODE
-                        }
-                    }
-                }
-
-                if (localizationConfig.passGeoPose && capturedGpsCoordinates?.isValid() == true) {
-                    parameters["geoHint"] = capturedGpsCoordinates!!.toGeoHintString()
-                }
-
-                if (localizationConfig.geoCoordinatesInResponse) {
-                    parameters["convertToGeoCoordinates"] = "true"
-                }
 
                 val response = networkManager.sendMultiFrameLocalizationRequest(
                     token,
@@ -596,7 +850,7 @@ class MultiFrameARActivity : AppCompatActivity() {
                 )
 
                 withContext(Dispatchers.Main) {
-                    handleLocalizationResponse(response)
+                    handleMultiFrameResponse(response)
                 }
             }
         } catch (e: Exception) {
@@ -607,7 +861,7 @@ class MultiFrameARActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleLocalizationResponse(response: LocalizationSuccessResponse) {
+    private fun handleMultiFrameResponse(response: LocalizationSuccessResponse) {
         isLocalizing = false
 
         if (response.poseFound) {
@@ -619,7 +873,7 @@ class MultiFrameARActivity : AppCompatActivity() {
                 }
             }
 
-            val resultPose = poseHandler(response)
+            val resultPose = poseHandlerMultiFrame(response)
 
             if (isFirstLocalization) {
                 isFirstLocalization = false
@@ -629,31 +883,25 @@ class MultiFrameARActivity : AppCompatActivity() {
             updateGizmoPosition(resultPose.position, resultPose.rotation)
 
             if (localizationConfig.meshVisualization) {
-                loadMeshAfterLocalization(response.mapIds)
+                loadMeshAfterLocalization(response.mapCodes)
             }
 
             if (localizationConfig.showAlerts && !isBackgroundLocalizationRequest) {
                 showToast(getString(R.string.localization_success))
             }
 
-            val mapId = response.mapIds.firstOrNull() ?: ""
+            val mapCode = response.mapCodes.firstOrNull() ?: ""
             val publicResult = LocalizationResult(
-                mapId = mapId,
-                position = floatArrayOf(
-                    resultPose.position.x,
-                    resultPose.position.y,
-                    resultPose.position.z
-                ),
-                rotation = floatArrayOf(
-                    resultPose.rotation.x,
-                    resultPose.rotation.y,
-                    resultPose.rotation.z,
-                    resultPose.rotation.w
-                ),
+                mapCode = mapCode,
+                mapCodes = response.mapCodes,
+                position = floatArrayOf(resultPose.position.x, resultPose.position.y, resultPose.position.z),
+                rotation = floatArrayOf(resultPose.rotation.x, resultPose.rotation.y, resultPose.rotation.z, resultPose.rotation.w),
                 confidence = response.confidence,
                 geoCoordinates = null
             )
             MultiSetSDK.getCallback()?.onLocalizationSuccess(publicResult)
+
+            Log.d(TAG, "Multi-frame localization successful!")
         } else {
             handleLocalizationFailure("Pose not found")
         }
@@ -663,18 +911,78 @@ class MultiFrameARActivity : AppCompatActivity() {
         }
     }
 
+    // ==================== Shared Request Helpers ====================
+
+    private fun buildCommonParameters(
+        fx: Float, fy: Float,
+        px: Float, py: Float,
+        width: Int, height: Int
+    ): MutableMap<String, String> {
+        val parameters = mutableMapOf(
+            "isRightHanded" to "true",
+            "fx" to fx.toString(),
+            "fy" to fy.toString(),
+            "px" to px.toString(),
+            "py" to py.toString(),
+            "width" to width.toString(),
+            "height" to height.toString()
+        )
+
+        when (SDKConfigInternal.getActiveMapType()) {
+            SDKConfigInternal.MapType.MAP -> {
+                if (SDKConfigInternal.MAP_CODE.isNotEmpty()) {
+                    parameters["mapCode"] = SDKConfigInternal.MAP_CODE
+                }
+            }
+            SDKConfigInternal.MapType.MAP_SET -> {
+                if (SDKConfigInternal.MAP_SET_CODE.isNotEmpty()) {
+                    parameters["mapSetCode"] = SDKConfigInternal.MAP_SET_CODE
+                }
+            }
+        }
+
+        if (localizationConfig.passGeoPose && capturedGpsCoordinates?.isValid() == true) {
+            parameters["geoHint"] = capturedGpsCoordinates!!.toGeoHintString()
+        }
+
+        if (localizationConfig.geoCoordinatesInResponse) {
+            parameters["convertToGeoCoordinates"] = "true"
+        }
+
+        return parameters
+    }
+
+    // ==================== Failure Handling ====================
+
     private fun handleLocalizationFailure(error: String?) {
         isLocalizing = false
         phoneAnimator?.cancel()
 
         if (shouldSilentlyRetry()) {
+            Log.d(TAG, "First localization failed, retrying silently...")
             if (localizationConfig.backgroundLocalization) {
                 scheduleBackgroundLocalization()
+            } else {
+                lifecycleScope.launch {
+                    delay(1000)
+                    if (!isLocalizing) {
+                        val frame = arFragment.arSceneView.arFrame
+                        if (frame != null && frame.camera.trackingState == TrackingState.TRACKING) {
+                            isBackgroundLocalizationRequest = false
+                            when (localizationMode) {
+                                LocalizationMode.SINGLE_FRAME -> startSingleFrameLocalization(frame)
+                                LocalizationMode.MULTI_FRAME -> startMultiFrameLocalization()
+                            }
+                        }
+                    }
+                }
             }
             return
         }
 
         hideAllOverlays()
+
+        Log.e(TAG, "Localization failed: $error")
 
         if (localizationConfig.showAlerts && !isBackgroundLocalizationRequest) {
             showToast(getString(R.string.localization_failed))
@@ -687,22 +995,26 @@ class MultiFrameARActivity : AppCompatActivity() {
         }
     }
 
-    private fun shouldSilentlyRetry(): Boolean {
-        return localizationConfig.firstLocalizationUntilSuccess && isFirstLocalization && !isBackgroundLocalizationRequest
-    }
+    private fun shouldSilentlyRetry(): Boolean =
+        localizationConfig.firstLocalizationUntilSuccess && isFirstLocalization && !isBackgroundLocalizationRequest
 
     private fun scheduleBackgroundLocalization() {
         backgroundLocalizationJob?.cancel()
 
         backgroundLocalizationJob = lifecycleScope.launch {
             val delayMs = (localizationConfig.bgLocalizationDurationSeconds * 1000).toLong()
+            Log.d(TAG, "Scheduling background localization in ${localizationConfig.bgLocalizationDurationSeconds}s")
             delay(delayMs)
 
             if (!isLocalizing) {
                 val frame = arFragment.arSceneView.arFrame
                 if (frame != null && frame.camera.trackingState == TrackingState.TRACKING) {
+                    Log.d(TAG, "Starting background localization...")
                     isBackgroundLocalizationRequest = true
-                    startLocalization()
+                    when (localizationMode) {
+                        LocalizationMode.SINGLE_FRAME -> startSingleFrameLocalization(frame)
+                        LocalizationMode.MULTI_FRAME -> startMultiFrameLocalization()
+                    }
                 }
             }
         }
@@ -710,7 +1022,30 @@ class MultiFrameARActivity : AppCompatActivity() {
 
     // ==================== Pose Calculation ====================
 
-    private fun poseHandler(response: LocalizationSuccessResponse): ResultPose {
+    private fun poseHandler(
+        estPosition: Vector3,
+        estRotation: Quaternion,
+        trackerPosition: Vector3,
+        trackerRotation: Quaternion
+    ): ResultPose {
+        val estRotMatrix = createMatrixFromQuaternion(estRotation)
+        val estMatrix = createTransformMatrix(estRotMatrix, estPosition)
+        val invEstMatrix = invertMatrix(estMatrix)
+
+        val trackerMatrix = createTransformMatrix(
+            createMatrixFromQuaternion(trackerRotation),
+            trackerPosition
+        )
+
+        val resultMatrix = multiplyMatrices(trackerMatrix, invEstMatrix)
+
+        val resultPosition = extractPosition(resultMatrix)
+        val resultRotation = extractRotation(resultMatrix)
+
+        return ResultPose(resultPosition, resultRotation)
+    }
+
+    private fun poseHandlerMultiFrame(response: LocalizationSuccessResponse): ResultPose {
         val estRotation = Quaternion(
             response.estimatedPose.rotation.x,
             response.estimatedPose.rotation.y,
@@ -754,24 +1089,24 @@ class MultiFrameARActivity : AppCompatActivity() {
 
     // ==================== Mesh Loading ====================
 
-    private fun loadMeshAfterLocalization(mapIds: List<String>) {
-        if (mapIds.isEmpty()) return
+    private fun loadMeshAfterLocalization(mapCodes: List<String>) {
+        if (mapCodes.isEmpty()) return
 
-        val localizedMapId = mapIds.first()
+        val localizedMapCode = mapCodes.first()
+        Log.d(TAG, "Loading mesh for map: $localizedMapCode")
 
         lifecycleScope.launch {
             try {
                 when (SDKConfigInternal.getActiveMapType()) {
                     SDKConfigInternal.MapType.MAP -> {
-                        meshHandler?.loadMeshForMap(localizedMapId) { meshResult ->
+                        meshHandler?.loadMeshForMap(localizedMapCode) { meshResult ->
                             renderMesh(meshResult)
                         }
                     }
-
                     SDKConfigInternal.MapType.MAP_SET -> {
                         meshHandler?.loadMeshForMapSet(
                             SDKConfigInternal.MAP_SET_CODE,
-                            localizedMapId
+                            localizedMapCode
                         ) { meshResult ->
                             renderMesh(meshResult)
                         }
@@ -785,11 +1120,14 @@ class MultiFrameARActivity : AppCompatActivity() {
 
     private fun renderMesh(meshResult: com.multiset.sdk.internal.mesh.MeshResult) {
         val parentNode = gizmoNode ?: return
+        val cameraPos = getCurrentCameraWorldPosition()
 
-        meshRenderer?.renderMesh(meshResult, parentNode) { success ->
+        meshRenderer?.renderMesh(meshResult, parentNode, cameraPos) { success ->
             if (success) {
+                Log.d(TAG, "Mesh rendered successfully for map: ${meshResult.mapId}")
                 MultiSetSDK.getCallback()?.onMeshLoaded(meshResult.mapId)
             } else {
+                Log.e(TAG, "Failed to render mesh for map: ${meshResult.mapId}")
                 MultiSetSDK.getCallback()?.onMeshLoadError("Failed to render mesh")
             }
         }
@@ -854,17 +1192,40 @@ class MultiFrameARActivity : AppCompatActivity() {
                 startGpsStatusUpdates()
                 waitForGpsAndStartLocalization()
             }
-
+            shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) -> {
+                showGpsIndicator()
+                showLocationPermissionRationale()
+            }
             else -> {
                 showGpsIndicator()
-                locationPermissionLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
-                )
+                requestLocationPermission()
             }
         }
+    }
+
+    private fun showLocationPermissionRationale() {
+        AlertDialog.Builder(this)
+            .setTitle("Location Permission Required")
+            .setMessage("Location permission is needed to improve localization accuracy.")
+            .setPositiveButton("Grant") { _, _ ->
+                requestLocationPermission()
+            }
+            .setNegativeButton("Skip") { dialog, _ ->
+                dialog.dismiss()
+                if (localizationConfig.autoLocalize) {
+                    startAutoLocalizationDelayed(1000L)
+                }
+            }
+            .show()
+    }
+
+    private fun requestLocationPermission() {
+        locationPermissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
     }
 
     private fun initializeGps() {
@@ -872,9 +1233,8 @@ class MultiFrameARActivity : AppCompatActivity() {
         gpsCoordinateHandler?.enableGpsHandler()
     }
 
-    private fun hasValidGpsCoordinates(): Boolean {
-        return gpsCoordinateHandler?.gpsCoordinates?.isValid() == true
-    }
+    private fun hasValidGpsCoordinates(): Boolean =
+        gpsCoordinateHandler?.gpsCoordinates?.isValid() == true
 
     private fun waitForGpsAndStartLocalization() {
         if (!localizationConfig.autoLocalize) return
@@ -890,6 +1250,7 @@ class MultiFrameARActivity : AppCompatActivity() {
     private fun showGpsIndicator() {
         if (localizationConfig.passGeoPose) {
             binding.gpsIndicator.visibility = View.VISIBLE
+            updateGpsIndicator(false)
         }
     }
 
@@ -904,10 +1265,14 @@ class MultiFrameARActivity : AppCompatActivity() {
     }
 
     private fun updateGpsIndicator() {
+        updateGpsIndicator(hasValidGpsCoordinates())
+    }
+
+    private fun updateGpsIndicator(isActive: Boolean) {
         runOnUiThread {
             if (localizationConfig.passGeoPose) {
                 binding.gpsIndicator.visibility = View.VISIBLE
-                if (hasValidGpsCoordinates()) {
+                if (isActive) {
                     binding.gpsStatusDot.setBackgroundResource(R.drawable.gps_dot_active)
                 } else {
                     binding.gpsStatusDot.setBackgroundResource(R.drawable.gps_dot_inactive)
@@ -924,13 +1289,15 @@ class MultiFrameARActivity : AppCompatActivity() {
         binding.backgroundProgressIndicator.visibility = View.GONE
         binding.localizeButton.visibility = View.GONE
         binding.apiLoadingOverlay.visibility = View.GONE
-        binding.localizationOverlay.visibility = View.VISIBLE
+        binding.singleFrameOverlay.visibility = View.GONE
+        binding.multiFrameOverlay.visibility = View.VISIBLE
     }
 
     private fun showApiLoadingOverlay() {
         binding.backgroundProgressIndicator.visibility = View.GONE
         binding.localizeButton.visibility = View.GONE
-        binding.localizationOverlay.visibility = View.GONE
+        binding.singleFrameOverlay.visibility = View.GONE
+        binding.multiFrameOverlay.visibility = View.GONE
         binding.apiLoadingOverlay.visibility = View.VISIBLE
     }
 
@@ -939,7 +1306,8 @@ class MultiFrameARActivity : AppCompatActivity() {
     }
 
     private fun hideAllOverlays() {
-        binding.localizationOverlay.visibility = View.GONE
+        binding.singleFrameOverlay.visibility = View.GONE
+        binding.multiFrameOverlay.visibility = View.GONE
         binding.apiLoadingOverlay.visibility = View.GONE
         binding.backgroundProgressIndicator.visibility = View.GONE
         binding.localizeButton.visibility = View.VISIBLE
@@ -958,12 +1326,9 @@ class MultiFrameARActivity : AppCompatActivity() {
             val child = viewGroup.getChildAt(i)
             val resourceName = try {
                 resources.getResourceEntryName(child.id)
-            } catch (e: Exception) {
-                ""
-            }
+            } catch (e: Exception) { "" }
             if (resourceName.contains("instruction", ignoreCase = true) ||
-                resourceName.contains("hand", ignoreCase = true)
-            ) {
+                resourceName.contains("hand", ignoreCase = true)) {
                 child.visibility = View.GONE
             }
             if (child is android.view.ViewGroup) {
@@ -985,7 +1350,29 @@ class MultiFrameARActivity : AppCompatActivity() {
             .show()
     }
 
+    // ==================== Utility ====================
+
+    private fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
+        val matrix = android.graphics.Matrix().apply { postRotate(degrees) }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
     // ==================== Data Classes ====================
+
+    private data class CameraPose(
+        val position: Vector3,
+        val rotation: Quaternion
+    )
+
+    private data class CapturedImageData(
+        val imageBytes: ByteArray,
+        val width: Int,
+        val height: Int,
+        val fx: Float,
+        val fy: Float,
+        val px: Float,
+        val py: Float
+    )
 
     private data class UploadData(
         val width: Int,

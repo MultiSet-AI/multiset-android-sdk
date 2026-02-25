@@ -17,19 +17,15 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.ar.core.ArCoreApk
-
-import com.multiset.sdk.android.databinding.ActivityMainBinding
-import com.multiset.sdk.android.ui.MultiFrameARActivity
-import com.multiset.sdk.android.ui.SingleFrameARActivity
 import com.multiset.sdk.LocalizationMode
 import com.multiset.sdk.LocalizationResult
 import com.multiset.sdk.MultiSetCallback
 import com.multiset.sdk.MultiSetConfig
 import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.TrackingState
-import com.multiset.sdk.android.utils.NetworkUtils
-import kotlin.jvm.java
-
+import android.util.Log
+import com.multiset.sdk.android.databinding.ActivityMainBinding
+import com.multiset.sdk.android.ui.MultiSetLocalizationActivity
 
 /**
  * Demo app showing how to integrate MultiSet SDK.
@@ -42,6 +38,10 @@ import kotlin.jvm.java
 class MainActivity :
     AppCompatActivity(),
     MultiSetCallback {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     private lateinit var binding: ActivityMainBinding
     private var pendingLocalizationType: LocalizationMode? = null
 
@@ -189,7 +189,7 @@ class MainActivity :
 
             ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD,
             ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED,
-                -> {
+            -> {
                 try {
                     val installStatus = ArCoreApk.getInstance().requestInstall(this, true)
                     if (installStatus == ArCoreApk.InstallStatus.INSTALL_REQUESTED) {
@@ -207,22 +207,12 @@ class MainActivity :
     }
 
     private fun startARSession() {
-        if (!NetworkUtils.isInternetAvailable(this)) {
-            showToast("No internet connection. Please check your network and try again.")
-            return
-        }
-
-        when (pendingLocalizationType) {
-            LocalizationMode.SINGLE_FRAME -> {
-                val intent = Intent(this, SingleFrameARActivity::class.java)
-                startActivity(intent)
-            }
-
-            LocalizationMode.MULTI_FRAME, null -> {
-                val intent = Intent(this, MultiFrameARActivity::class.java)
-                startActivity(intent)
-            }
-        }
+        val intent = Intent(this, MultiSetLocalizationActivity::class.java)
+        intent.putExtra(
+            MultiSetLocalizationActivity.EXTRA_LOCALIZATION_MODE,
+            (pendingLocalizationType ?: LocalizationMode.MULTI_FRAME).name
+        )
+        startActivity(intent)
     }
 
     private fun showToast(message: String) {
@@ -260,7 +250,11 @@ class MainActivity :
     }
 
     override fun onLocalizationSuccess(result: LocalizationResult) {
-        // Handle localization success - AR activity handles this internally
+        Log.d(TAG, "Localization success - mapCode: ${result.mapCode}, " +
+                "mapCodes: ${result.mapCodes}, " +
+                "position: [${result.position.joinToString()}], " +
+                "rotation: [${result.rotation.joinToString()}], " +
+                "confidence: ${result.confidence}")
     }
 
     override fun onLocalizationFailure(error: String) {

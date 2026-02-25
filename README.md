@@ -28,7 +28,7 @@ The MultiSet SDK enables visual positioning in your Android applications. It sup
 | Android API Level | 28 (Android 9.0) |
 | Target SDK | 36 |
 | Java Version | 17 |
-| Kotlin Version | 2.0.21+ |
+| Kotlin Version | 2.2.0+ |
 | Device | ARCore-supported with camera |
 
 ### Credentials
@@ -67,8 +67,8 @@ Place the `multiset-sdk.aar` file in your project's `app/libs/` directory.
 
 Add the SDK and required dependencies to your app module's build configuration. The SDK requires:
 
-- ARCore 1.25.0 (for Sceneform compatibility)
-- Sceneform 1.21.0
+- ARCore 1.46.0
+- Sceneform 1.24.6 (RGregat fork with 16KB page size support)
 - OkHttp & Retrofit for networking
 - Kotlin Coroutines
 - AndroidX libraries
@@ -177,31 +177,35 @@ Successful localization provides:
 
 | Field | Description |
 |-------|-------------|
-| Map ID | Identifier of the localized map |
+| Map Code | Code of the localized map |
+| Map Codes | List of all map codes returned by localization |
 | Position | XYZ coordinates in ARCore world space |
 | Rotation | Quaternion (XYZW) orientation |
 | Confidence | Localization confidence score (if available) |
 | Geo Coordinates | Latitude, longitude, altitude (if requested) |
 
+The localization result is delivered via `onLocalizationSuccess` callback and can also be retrieved at any time using `MultiSetSDK.getLastLocalizationResult()`.
+
 ---
 
-## AR Activities
+## AR Activity
 
-The sample app includes two AR activity implementations:
+The SDK uses a unified `MultiSetLocalizationActivity` that handles both single-frame and multi-frame localization modes within a single activity. The mode is selected at launch time based on your SDK configuration.
 
-### SingleFrameARActivity
+### Single-Frame Mode
 
 - Single-image localization
 - Quick position estimation
 - Lower latency
 
-### MultiFrameARActivity
+### Multi-Frame Mode
 
 - Multi-image localization
 - Higher accuracy
 - Captures frames at configurable intervals
 
-Both activities support:
+Both modes share the same activity and support:
+- Localization animation with visual feedback
 - Automatic and manual localization triggers
 - Background localization
 - Relocalization on tracking loss

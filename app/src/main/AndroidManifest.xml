@@ -28,16 +28,12 @@
             </intent-filter>
         </activity>
 
-        <!-- AR Localization Activities -->
+        <!-- Unified AR Localization Activity -->
         <activity
-            android:name=".ui.SingleFrameARActivity"
+            android:name=".ui.MultiSetLocalizationActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
-            android:exported="false" />
-
-        <activity
-            android:name=".ui.MultiFrameARActivity"
-            android:configChanges="orientation|keyboardHidden|screenSize"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
     </application>
 
