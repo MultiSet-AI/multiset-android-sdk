@@ -9,7 +9,15 @@ package com.multiset.sdk.android
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Typeface
 import android.os.Bundle
+import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,10 +30,11 @@ import com.multiset.sdk.LocalizationResult
 import com.multiset.sdk.MultiSetCallback
 import com.multiset.sdk.MultiSetConfig
 import com.multiset.sdk.MultiSetSDK
+import com.multiset.sdk.ObjectTrackingResult
 import com.multiset.sdk.TrackingState
-import android.util.Log
 import com.multiset.sdk.android.databinding.ActivityMainBinding
 import com.multiset.sdk.android.ui.MultiSetLocalizationActivity
+import com.multiset.sdk.android.ui.ObjectTrackingActivity
 
 /**
  * Demo app showing how to integrate MultiSet SDK.
@@ -34,6 +43,7 @@ import com.multiset.sdk.android.ui.MultiSetLocalizationActivity
  * 1. Initializing the SDK with credentials
  * 2. Handling authentication
  * 3. Launching single-frame and multi-frame AR localization
+ * 4. Launching object tracking
  */
 class MainActivity :
     AppCompatActivity(),
@@ -44,6 +54,8 @@ class MainActivity :
 
     private lateinit var binding: ActivityMainBinding
     private var pendingLocalizationType: LocalizationMode? = null
+    private var pendingObjectTracking = false
+    private var selectedMode: LocalizationMode = LocalizationMode.MULTI_FRAME
 
     private val cameraPermissionLauncher =
         registerForActivityResult(
@@ -65,6 +77,7 @@ class MainActivity :
 
         setupUI()
         displayMapCode()
+        displayObjectCodes()
         initializeSDK()
 
         binding.instructionsText.setOnClickListener {
@@ -82,23 +95,24 @@ class MainActivity :
         val mapSetCode = BuildConfig.MULTISET_MAP_SET_CODE
 
         if (clientId.isEmpty() || clientSecret.isEmpty()) {
-            binding.statusText.text = "Please configure credentials in build.gradle"
             return
         }
 
         if (mapCode.isEmpty() && mapSetCode.isEmpty()) {
-            showConfigurationAlert()
-            return
+            val objectCodes = BuildConfig.MULTISET_OBJECT_CODES.split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            if (objectCodes.isEmpty()) {
+                showConfigurationAlert()
+                return
+            }
         }
 
-        binding.statusText.text = "Initializing SDK..."
-
-        // Build SDK configuration
         val configBuilder = MultiSetConfig.Builder(clientId, clientSecret)
 
         if (mapCode.isNotEmpty()) {
             configBuilder.mapCode(mapCode)
-        } else {
+        } else if (mapSetCode.isNotEmpty()) {
             configBuilder.mapSetCode(mapSetCode)
         }
 
@@ -108,7 +122,6 @@ class MainActivity :
                 .backgroundLocalization(true)
                 .build()
 
-        // Initialize SDK
         MultiSetSDK.initialize(this, config, this)
     }
 
@@ -118,15 +131,73 @@ class MainActivity :
 
         when {
             mapCode.isEmpty() && mapSetCode.isEmpty() -> {
-                binding.mapCodeText.text = "No Map Configured"
+                binding.mapCodeContainer.visibility = View.GONE
+                binding.noMapText.visibility = View.VISIBLE
             }
-
             mapCode.isNotEmpty() -> {
-                binding.mapCodeText.text = "Map Code: $mapCode"
+                binding.mapCodeContainer.visibility = View.VISIBLE
+                binding.noMapText.visibility = View.GONE
+                binding.mapCodeText.text = mapCode
             }
-
             else -> {
-                binding.mapCodeText.text = "Map Set Code: $mapSetCode"
+                binding.mapCodeContainer.visibility = View.VISIBLE
+                binding.noMapText.visibility = View.GONE
+                binding.mapCodeText.text = mapSetCode
+            }
+        }
+    }
+
+    private fun displayObjectCodes() {
+        val objectCodes = BuildConfig.MULTISET_OBJECT_CODES.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+        if (objectCodes.isEmpty()) {
+            binding.noObjectCodesText.visibility = View.VISIBLE
+            binding.objectCodesContainer.visibility = View.GONE
+            binding.objectCountBadge.visibility = View.GONE
+        } else {
+            binding.noObjectCodesText.visibility = View.GONE
+            binding.objectCodesContainer.visibility = View.VISIBLE
+            binding.objectCountBadge.visibility = View.VISIBLE
+            binding.objectCountBadge.text =
+                "${objectCodes.size} object${if (objectCodes.size == 1) "" else "s"}"
+
+            binding.objectCodesContainer.removeAllViews()
+            objectCodes.forEachIndexed { index, code ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        if (index > 0) topMargin = dpToPx(6)
+                    }
+                }
+
+                val icon = ImageView(this).apply {
+                    setImageResource(R.drawable.ic_cube)
+                    imageTintList = ColorStateList.valueOf(0xB300BCD4.toInt())
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(14), dpToPx(14))
+                }
+
+                val text = TextView(this).apply {
+                    text = code
+                    textSize = 12f
+                    typeface = Typeface.MONOSPACE
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        marginStart = dpToPx(6)
+                    }
+                }
+
+                row.addView(icon)
+                row.addView(text)
+                binding.objectCodesContainer.addView(row)
             }
         }
     }
@@ -135,7 +206,7 @@ class MainActivity :
         AlertDialog
             .Builder(this)
             .setTitle("Configuration Required")
-            .setMessage("Both MAP_CODE and MAP_SET_CODE are empty. Please configure at least one in build.gradle.")
+            .setMessage("No map codes or object codes are configured. Please update multiset.properties.")
             .setPositiveButton("OK") { dialog, _ ->
                 dialog.dismiss()
             }.setCancelable(false)
@@ -143,25 +214,47 @@ class MainActivity :
     }
 
     private fun setupUI() {
-        // Initially disable localization buttons
-        binding.singleFrameButton.isEnabled = false
-        binding.multiFrameButton.isEnabled = false
+        binding.localizationButton.isEnabled = false
+        binding.objectTrackingButton.isEnabled = false
         binding.authButton.isEnabled = false
 
+        // Default mode = Multi Frame (matches iOS default)
+        binding.modeToggleGroup.check(R.id.multiFrameButton)
+
+        binding.modeToggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                selectedMode = when (checkedId) {
+                    R.id.singleFrameButton -> LocalizationMode.SINGLE_FRAME
+                    else -> LocalizationMode.MULTI_FRAME
+                }
+            }
+        }
+
         binding.authButton.setOnClickListener {
-            // Re-initialize SDK to trigger authentication
             initializeSDK()
         }
 
-        binding.singleFrameButton.setOnClickListener {
-            pendingLocalizationType = LocalizationMode.SINGLE_FRAME
+        binding.localizationButton.setOnClickListener {
+            val mapCode = BuildConfig.MULTISET_MAP_CODE
+            val mapSetCode = BuildConfig.MULTISET_MAP_SET_CODE
+            if (mapCode.isEmpty() && mapSetCode.isEmpty()) {
+                AlertDialog.Builder(this)
+                    .setTitle("Map Code Required")
+                    .setMessage("Please configure a mapCode or mapSetCode in multiset.properties to start localization.")
+                    .setPositiveButton("OK") { d, _ -> d.dismiss() }
+                    .show()
+                return@setOnClickListener
+            }
+            pendingLocalizationType = selectedMode
+            pendingObjectTracking = false
             if (checkCameraPermission()) {
                 checkARCoreAndProceed()
             }
         }
 
-        binding.multiFrameButton.setOnClickListener {
-            pendingLocalizationType = LocalizationMode.MULTI_FRAME
+        binding.objectTrackingButton.setOnClickListener {
+            pendingObjectTracking = true
+            pendingLocalizationType = null
             if (checkCameraPermission()) {
                 checkARCoreAndProceed()
             }
@@ -207,17 +300,38 @@ class MainActivity :
     }
 
     private fun startARSession() {
-        val intent = Intent(this, MultiSetLocalizationActivity::class.java)
-        intent.putExtra(
-            MultiSetLocalizationActivity.EXTRA_LOCALIZATION_MODE,
-            (pendingLocalizationType ?: LocalizationMode.MULTI_FRAME).name
-        )
-        startActivity(intent)
+        if (pendingObjectTracking) {
+            val objectCodes = BuildConfig.MULTISET_OBJECT_CODES.split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toTypedArray()
+
+            if (objectCodes.isEmpty()) {
+                showToast("No object codes configured. Set MULTISET_OBJECT_CODES in multiset.properties")
+                return
+            }
+
+            ObjectTrackingConfig.objectCodes = objectCodes
+            ObjectTrackingConfig.validate()
+
+            val intent = Intent(this, ObjectTrackingActivity::class.java)
+            intent.putExtra(ObjectTrackingActivity.EXTRA_OBJECT_CODES, objectCodes)
+            startActivity(intent)
+        } else {
+            val intent = Intent(this, MultiSetLocalizationActivity::class.java)
+            intent.putExtra(
+                MultiSetLocalizationActivity.EXTRA_LOCALIZATION_MODE,
+                (pendingLocalizationType ?: LocalizationMode.MULTI_FRAME).name
+            )
+            startActivity(intent)
+        }
     }
 
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     // ============================================================
     // MultiSetCallback Implementation
@@ -225,26 +339,27 @@ class MainActivity :
 
     override fun onSDKReady() {
         runOnUiThread {
-            binding.statusText.text = "Authenticating..."
+            binding.authButton.text = getString(R.string.authenticating)
         }
     }
 
     override fun onAuthenticationSuccess() {
         runOnUiThread {
-            binding.statusText.text = "Authenticated"
-            binding.authButton.text = "Authenticated"
+            binding.authButton.text = getString(R.string.authenticated)
             binding.authButton.isEnabled = false
-            binding.singleFrameButton.isEnabled = true
-            binding.multiFrameButton.isEnabled = true
+            binding.authButton.backgroundTintList =
+                ColorStateList.valueOf(ContextCompat.getColor(this, R.color.success))
+            binding.authButton.icon = ContextCompat.getDrawable(this, R.drawable.ic_check)
+            binding.localizationButton.isEnabled = true
+            binding.objectTrackingButton.isEnabled = true
             showToast("Authentication successful")
         }
     }
 
     override fun onAuthenticationFailure(error: String) {
         runOnUiThread {
-            binding.statusText.text = "Authentication Failed"
             binding.authButton.isEnabled = true
-            binding.authButton.text = getString(R.string.auth)
+            binding.authButton.text = getString(R.string.authenticate)
             showToast("Authentication failed: $error")
         }
     }
@@ -263,6 +378,18 @@ class MainActivity :
 
     override fun onTrackingStateChanged(state: TrackingState) {
         // Handle tracking state changes - AR activity handles this internally
+    }
+
+    override fun onObjectTrackingSuccess(result: ObjectTrackingResult) {
+        Log.d(TAG, "Object tracking success - objectCode: ${result.objectCode}, " +
+                "objectCodes: ${result.objectCodes}, " +
+                "position: [${result.position.joinToString()}], " +
+                "rotation: [${result.rotation.joinToString()}], " +
+                "confidence: ${result.confidence}")
+    }
+
+    override fun onObjectTrackingFailure(error: String) {
+        Log.d(TAG, "Object tracking failure: $error")
     }
 
     override fun onDestroy() {

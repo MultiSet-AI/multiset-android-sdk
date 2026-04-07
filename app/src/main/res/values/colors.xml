@@ -12,4 +12,8 @@
     <color name="success">#4CAF50</color>
     <color name="error">#F44336</color>
 
+    <color name="purple">#7B2CBF</color>
+    <color name="teal">#00BCD4</color>
+    <color name="border_gray">#40808080</color>
+
 </resources>

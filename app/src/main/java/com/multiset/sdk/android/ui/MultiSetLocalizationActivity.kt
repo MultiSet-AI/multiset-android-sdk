@@ -360,7 +360,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
     }
 
     private fun setupPhoneAnimation() {
-        phoneAnimator = ObjectAnimator.ofFloat(binding.phoneImage, "translationX", 0f, 130f).apply {
+        phoneAnimator = ObjectAnimator.ofFloat(binding.phoneImage, "translationX", 0f, 260f).apply {
             duration = 2000
             repeatCount = ValueAnimator.INFINITE
             repeatMode = ValueAnimator.REVERSE

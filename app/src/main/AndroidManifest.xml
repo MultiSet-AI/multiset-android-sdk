@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -31,6 +30,13 @@
         <!-- Unified AR Localization Activity -->
         <activity
             android:name=".ui.MultiSetLocalizationActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- Object Tracking Activity -->
+        <activity
+            android:name=".ui.ObjectTrackingActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:exported="false"
             android:screenOrientation="portrait" />
