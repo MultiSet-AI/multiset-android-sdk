@@ -218,6 +218,11 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             meshVisualization = LocalizationConfig.enableMeshVisualization,
             passGeoPose = LocalizationConfig.enableGeoHint,
             geoCoordinatesInResponse = LocalizationConfig.includeGeoCoordinatesInResponse,
+            hintMapCodes = LocalizationConfig.hintMapCodes,
+            hintPosition = LocalizationConfig.hintPosition,
+            hintFloorHeight = LocalizationConfig.hintFloorHeight,
+            hintRadius = LocalizationConfig.hintRadius,
+            use2DFiltering = LocalizationConfig.use2DFiltering,
             imageQuality = LocalizationConfig.imageQuality
         )
         Log.d(TAG, "localizationConfig.autoLocalize = ${localizationConfig.autoLocalize}")
@@ -603,7 +608,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 val response = networkManager.sendSingleFrameLocalizationRequest(
                     token,
                     parameters,
-                    imageData.imageBytes
+                    imageData.imageBytes,
+                    hintMapCodesToSend()
                 )
 
                 withContext(Dispatchers.Main) {
@@ -846,7 +852,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 val response = networkManager.sendMultiFrameLocalizationRequest(
                     token,
                     parameters,
-                    capturedImages
+                    capturedImages,
+                    hintMapCodesToSend()
                 )
 
                 withContext(Dispatchers.Main) {
@@ -941,7 +948,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             }
         }
 
-        if (localizationConfig.passGeoPose && capturedGpsCoordinates?.isValid() == true) {
+        val hasGeoHint = localizationConfig.passGeoPose && capturedGpsCoordinates?.isValid() == true
+        if (hasGeoHint) {
             parameters["geoHint"] = capturedGpsCoordinates!!.toGeoHintString()
         }
 
@@ -949,54 +957,65 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             parameters["convertToGeoCoordinates"] = "true"
         }
 
+        val hintPosition = localizationConfig.hintPosition
+        if (hintPosition.isNotBlank()) {
+            parameters["hintPosition"] = hintPosition
+        }
+
+        if (localizationConfig.hintFloorHeight.isNotBlank()) {
+            parameters["hintFloorHeight"] = localizationConfig.hintFloorHeight
+        }
+
+        // hintRadius and use2DFiltering are spatial filters that are only meaningful
+        // relative to a geo hint or a position hint. Sending them with no reference
+        // point makes the server filter out every candidate ("Pose not found"), so
+        // only include them when such a hint is actually present.
+        if (hasGeoHint || hintPosition.isNotBlank()) {
+            if (localizationConfig.hintRadius > 0) {
+                parameters["hintRadius"] = localizationConfig.hintRadius.toString()
+            }
+            if (localizationConfig.use2DFiltering) {
+                parameters["use2DFiltering"] = "true"
+            }
+        }
+
+        Log.d(TAG, "Localization request params: $parameters")
         return parameters
     }
+
+    /**
+     * Map codes to send as repeated `hintMapCodes` multipart fields.
+     * Only applies to map set localization
+     */
+    private fun hintMapCodesToSend(): List<String> =
+        if (SDKConfigInternal.getActiveMapType() == SDKConfigInternal.MapType.MAP_SET) {
+            localizationConfig.hintMapCodes
+        } else {
+            emptyList()
+        }
 
     // ==================== Failure Handling ====================
 
     private fun handleLocalizationFailure(error: String?) {
         isLocalizing = false
         phoneAnimator?.cancel()
-
-        if (shouldSilentlyRetry()) {
-            Log.d(TAG, "First localization failed, retrying silently...")
-            if (localizationConfig.backgroundLocalization) {
-                scheduleBackgroundLocalization()
-            } else {
-                lifecycleScope.launch {
-                    delay(1000)
-                    if (!isLocalizing) {
-                        val frame = arFragment.arSceneView.arFrame
-                        if (frame != null && frame.camera.trackingState == TrackingState.TRACKING) {
-                            isBackgroundLocalizationRequest = false
-                            when (localizationMode) {
-                                LocalizationMode.SINGLE_FRAME -> startSingleFrameLocalization(frame)
-                                LocalizationMode.MULTI_FRAME -> startMultiFrameLocalization()
-                            }
-                        }
-                    }
-                }
-            }
-            return
-        }
-
         hideAllOverlays()
 
         Log.e(TAG, "Localization failed: $error")
 
-        if (localizationConfig.showAlerts && !isBackgroundLocalizationRequest) {
+        // Always surface the failure to the user so the localization animation never
+        // appears stuck. Background (silent) retries are exempt to avoid toast spam.
+        if (!isBackgroundLocalizationRequest) {
             showToast(getString(R.string.localization_failed))
         }
 
         MultiSetSDK.getCallback()?.onLocalizationFailure(error ?: "Unknown error")
 
+        // Keep retrying in the background if enabled (next attempt runs silently).
         if (localizationConfig.backgroundLocalization) {
             scheduleBackgroundLocalization()
         }
     }
-
-    private fun shouldSilentlyRetry(): Boolean =
-        localizationConfig.firstLocalizationUntilSuccess && isFirstLocalization && !isBackgroundLocalizationRequest
 
     private fun scheduleBackgroundLocalization() {
         backgroundLocalizationJob?.cancel()

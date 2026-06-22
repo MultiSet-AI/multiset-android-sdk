@@ -25,4 +25,19 @@
         <item name="android:windowBackground">@android:color/black</item>
     </style>
 
+    <!-- FAB Circular Style with Border -->
+    <style name="ShapeAppearance.Fab.Circular" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <!-- Full-screen, DayNight-aware dialog used by the settings window. -->
+    <style name="FullScreenDialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+        <item name="android:statusBarColor">@color/purple</item>
+        <item name="colorPrimary">@color/purple</item>
+    </style>
+
 </resources>

@@ -8,12 +8,12 @@
     <string name="reset">Reset</string>
     <string name="localize">Localize</string>
     <string name="multiset_vps_demo">MultiSet VPS </string>
+    <string name="multiset_vps_samples">MultiSet VPS Samples</string>
     <string name="ready_to_authenticate">Ready to authenticate</string>
     <string name="auth">Auth</string>
     <string name="authenticate">Authenticate</string>
     <string name="authenticated">Authenticated</string>
     <string name="authenticating">Authenticating\u2026</string>
-    <string name="multiset_vps_samples">MultiSet VPS Samples</string>
     <string name="localization_label">Localization</string>
     <string name="mode_label">Mode</string>
     <string name="single_frame">Single Frame</string>
@@ -23,9 +23,6 @@
     <string name="no_map_configured">No map configured. Set mapCode or mapSetCode in build.gradle.</string>
     <string name="no_object_codes">No object codes configured. Add codes in build.gradle to enable tracking.</string>
     <string name="footer_credentials">To get credentials visit developer.multiset.ai/credentials</string>
-
-    <!-- Object Tracking -->
-    <string name="object_tracking">Object Tracking</string>
 
     <!-- Localization UI -->
     <string name="localization_instruction">Look forward and\nmove device slowly</string>
@@ -43,4 +40,15 @@
     <string name="capturing">Capturing…</string>
     <string name="single_frame_instruction">Point at a scanned area\nand tap Capture</string>
 
+    <!-- Object Tracking -->
+    <string name="object_tracking">Object Tracking</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="settings_title">Configuration</string>
+    <string name="settings_close">Close settings</string>
+    <string name="settings_section_map">Map Localization</string>
+    <string name="settings_section_object">Object Tracking</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_reset">Reset</string>
 </resources>

@@ -75,6 +75,9 @@ class MainActivity :
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Apply any saved configuration before the AR activities read the config objects.
+        ConfigStore.load(this)
+
         setupUI()
         displayMapCode()
         displayObjectCodes()
@@ -228,6 +231,12 @@ class MainActivity :
                     else -> LocalizationMode.MULTI_FRAME
                 }
             }
+        }
+
+        binding.settingsButton.setOnClickListener {
+            SettingsDialogFragment
+                .newInstance(selectedMode == LocalizationMode.MULTI_FRAME)
+                .show(supportFragmentManager, SettingsDialogFragment.TAG)
         }
 
         binding.authButton.setOnClickListener {

@@ -9,7 +9,7 @@ package com.multiset.sdk.android
 /**
  * Localization Configuration for MultiSet SDK.
  *
- * modify these values to customize localization behavior.
+ * SDK users can modify these values to customize localization behavior.
  * These settings control how the AR activities perform localization.
  *
  * To customize, simply change the default values below before launching AR activities.
@@ -75,13 +75,14 @@ object LocalizationConfig {
     /**
      * Whether to check confidence threshold before accepting localization.
      * If true, localizations with confidence below threshold will be rejected.
+     * Enabled by default.
      */
-    var confidenceCheck: Boolean = false
+    var confidenceCheck: Boolean = true
 
     /**
      * Minimum confidence score to accept localization result.
      * Only used when confidenceCheck is true.
-     * Valid range: 0.0 - 1.0.
+     * Valid range: 0.2 - 0.8
      */
     var confidenceThreshold: Float = 0.3f
 
@@ -100,6 +101,41 @@ object LocalizationConfig {
      * Useful if you need the world position of localized objects.
      */
     var includeGeoCoordinatesInResponse: Boolean = false
+
+    // ============================================================
+    // LOCALIZATION HINTS
+    // ============================================================
+
+    /**
+     * Subset of map codes within a map set to restrict localization to.
+     * Only used for map set localization; ignored for single-map localization.
+     */
+    var hintMapCodes: List<String> = emptyList()
+
+    /**
+     * Approximate position hint in "x,y,z" format to narrow the localization search.
+     * Leave empty to disable.
+     */
+    var hintPosition: String = ""
+
+    /**
+     * Floor/ceiling height constraint in "floor,ceiling" format, e.g. "0,5".
+     * Leave empty to disable.
+     */
+    var hintFloorHeight: String = ""
+
+    /**
+     * Search radius in meters for geo spatial filtering.
+     * Applied when a geo hint or position hint is provided.
+     * Valid range: 1 - 100.
+     */
+    var hintRadius: Int = 25
+
+    /**
+     * Whether to skip altitude (Y-axis) in geo hint spatial filtering,
+     * using only horizontal distance (X and Z axes).
+     */
+    var use2DFiltering: Boolean = false
 
     // ============================================================
     // UI SETTINGS
@@ -143,10 +179,15 @@ object LocalizationConfig {
         firstLocalizationUntilSuccess = true
         numberOfFrames = 4
         frameCaptureIntervalMs = 500L
-        confidenceCheck = false
+        confidenceCheck = true
         confidenceThreshold = 0.3f
         enableGeoHint = false
         includeGeoCoordinatesInResponse = false
+        hintMapCodes = emptyList()
+        hintPosition = ""
+        hintFloorHeight = ""
+        hintRadius = 25
+        use2DFiltering = false
         showAlerts = true
         enableMeshVisualization = true
         imageQuality = 90
@@ -160,7 +201,8 @@ object LocalizationConfig {
         backgroundLocalizationIntervalSeconds = backgroundLocalizationIntervalSeconds.coerceIn(15f, 180f)
         numberOfFrames = numberOfFrames.coerceIn(4, 6)
         frameCaptureIntervalMs = frameCaptureIntervalMs.coerceIn(100L, 1000L)
-        confidenceThreshold = confidenceThreshold.coerceIn(0f, 1f)
+        confidenceThreshold = confidenceThreshold.coerceIn(0.2f, 0.8f)
+        hintRadius = hintRadius.coerceIn(1, 100)
         imageQuality = imageQuality.coerceIn(50, 100)
     }
 }
