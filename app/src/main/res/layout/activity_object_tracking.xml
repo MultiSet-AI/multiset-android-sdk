@@ -66,7 +66,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="Tracking objects..."
+                android:text="@string/tracking_objects"
                 android:textColor="@android:color/white"
                 android:textSize="16sp"
                 android:textStyle="bold" />
@@ -82,7 +82,7 @@
         android:layout_height="72dp"
         android:layout_marginEnd="24dp"
         android:layout_marginBottom="24dp"
-        android:contentDescription="Start Tracking"
+        android:contentDescription="@string/start_tracking"
         android:src="@drawable/capture_button"
         android:scaleType="fitCenter"
         android:visibility="visible"

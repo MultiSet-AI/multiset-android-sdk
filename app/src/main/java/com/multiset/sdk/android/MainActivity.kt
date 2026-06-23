@@ -96,19 +96,17 @@ class MainActivity :
         val clientSecret = BuildConfig.MULTISET_CLIENT_SECRET
         val mapCode = BuildConfig.MULTISET_MAP_CODE
         val mapSetCode = BuildConfig.MULTISET_MAP_SET_CODE
+        val objectCodes = BuildConfig.MULTISET_OBJECT_CODES.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 
         if (clientId.isEmpty() || clientSecret.isEmpty()) {
             return
         }
 
-        if (mapCode.isEmpty() && mapSetCode.isEmpty()) {
-            val objectCodes = BuildConfig.MULTISET_OBJECT_CODES.split(",")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-            if (objectCodes.isEmpty()) {
-                showConfigurationAlert()
-                return
-            }
+        if (mapCode.isEmpty() && mapSetCode.isEmpty() && objectCodes.isEmpty()) {
+            showConfigurationAlert()
+            return
         }
 
         val configBuilder = MultiSetConfig.Builder(clientId, clientSecret)
@@ -117,6 +115,10 @@ class MainActivity :
             configBuilder.mapCode(mapCode)
         } else if (mapSetCode.isNotEmpty()) {
             configBuilder.mapSetCode(mapSetCode)
+        }
+
+        if (objectCodes.isNotEmpty()) {
+            configBuilder.objectCodes(objectCodes)
         }
 
         val config =
