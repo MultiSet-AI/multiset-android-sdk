@@ -673,7 +673,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 position = floatArrayOf(resultPose.position.x, resultPose.position.y, resultPose.position.z),
                 rotation = floatArrayOf(resultPose.rotation.x, resultPose.rotation.y, resultPose.rotation.z, resultPose.rotation.w),
                 confidence = response.confidence,
-                geoCoordinates = null
+                geoCoordinates = response.geoPose?.toGeoCoordinates()
             )
             MultiSetSDK.getCallback()?.onLocalizationSuccess(publicResult)
 
@@ -904,7 +904,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 position = floatArrayOf(resultPose.position.x, resultPose.position.y, resultPose.position.z),
                 rotation = floatArrayOf(resultPose.rotation.x, resultPose.rotation.y, resultPose.rotation.z, resultPose.rotation.w),
                 confidence = response.confidence,
-                geoCoordinates = null
+                geoCoordinates = response.geoPose?.toGeoCoordinates()
             )
             MultiSetSDK.getCallback()?.onLocalizationSuccess(publicResult)
 
@@ -957,6 +957,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             parameters["convertToGeoCoordinates"] = "true"
         }
 
+        // Localization hints (mirrors Unity SingleFrameLocalizationManager)
         val hintPosition = localizationConfig.hintPosition
         if (hintPosition.isNotBlank()) {
             parameters["hintPosition"] = hintPosition
@@ -985,7 +986,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
     /**
      * Map codes to send as repeated `hintMapCodes` multipart fields.
-     * Only applies to map set localization
+     * Only applies to map set localization (mirrors Unity behavior).
      */
     private fun hintMapCodesToSend(): List<String> =
         if (SDKConfigInternal.getActiveMapType() == SDKConfigInternal.MapType.MAP_SET) {
@@ -1158,7 +1159,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         val scene = arFragment.arSceneView.scene
         gizmoNode = GizmoNode(this)
         scene.addChild(gizmoNode)
-        gizmoNode?.show()
+        // Keep the gizmo hidden until the first localization succeeds;
+        gizmoNode?.hide()
     }
 
     private fun updateGizmoPosition(position: Vector3, rotation: Quaternion) {
@@ -1190,6 +1192,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         gizmoNode?.let {
             it.localPosition = Vector3.zero()
             it.localRotation = Quaternion.identity()
+            // Hide again until the next localization succeeds.
+            it.hide()
         }
 
         showToast("World origin reset")

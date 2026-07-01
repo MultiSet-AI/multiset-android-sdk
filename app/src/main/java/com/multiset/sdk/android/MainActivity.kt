@@ -380,7 +380,8 @@ class MainActivity :
                 "mapCodes: ${result.mapCodes}, " +
                 "position: [${result.position.joinToString()}], " +
                 "rotation: [${result.rotation.joinToString()}], " +
-                "confidence: ${result.confidence}")
+                "confidence: ${result.confidence}, " +
+                "geoCoordinates: ${result.geoCoordinates}")
     }
 
     override fun onLocalizationFailure(error: String) {
