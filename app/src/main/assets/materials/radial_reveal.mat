@@ -1,0 +1,107 @@
+material {
+    name : RadialReveal,
+    shadingModel : unlit,
+    blending : transparent,
+    doubleSided : true,
+    variables : [
+        variable0
+    ],
+    parameters : [
+        { type : float4, name : revealParam },
+        { type : float,  name : maxRadius }
+    ]
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        material.variable0 = getPosition();
+    }
+}
+
+fragment {
+    float getGridFactor(vec3 pos, vec3 faceNormal, float gridSize, float lineWidth) {
+        vec3 absN = abs(faceNormal);
+        vec2 gridCoord;
+
+        if (absN.y > absN.x && absN.y > absN.z) {
+            gridCoord = pos.xz / gridSize;
+        } else if (absN.x > absN.z) {
+            gridCoord = pos.yz / gridSize;
+        } else {
+            gridCoord = pos.xy / gridSize;
+        }
+
+        vec2 gridFract = fract(abs(gridCoord));
+        vec2 distToLine = min(gridFract, 1.0 - gridFract);
+        float minDist = min(distToLine.x, distToLine.y);
+
+        // Screen-space adaptive width
+        vec2 fw = fwidth(gridCoord);
+        float screenWidth = max(fw.x, fw.y) * 1.5;
+        float adaptedWidth = max(lineWidth, screenWidth);
+
+        float factor = 1.0 - smoothstep(0.0, adaptedWidth, minDist);
+
+        // Suppress grid on complex/dense/angled geometry
+        float maxFw = max(fw.x, fw.y);
+        float geometryValid = 1.0 - smoothstep(0.05, 0.12, maxFw);
+        factor *= geometryValid;
+
+        return factor;
+    }
+
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+
+        vec3 center    = materialParams.revealParam.xyz;
+        float progress = materialParams.revealParam.w;
+        float radius   = materialParams.maxRadius;
+
+        vec3 modelPos = variable_variable0.xyz;
+
+        // ── Normalized distance in model space ──
+        float dist = distance(modelPos, center);
+        float normalizedDist = dist / max(radius, 0.001);
+
+        // ── Radial clip ──
+        if (normalizedDist > progress + 0.001) {
+            material.baseColor = vec4(0.0);
+            return;
+        }
+
+        float distFromEdge = progress - normalizedDist;
+
+        // ── Base mesh color: dark shade of #7B2CBF ──
+        vec3 baseColor = vec3(0.18, 0.06, 0.28);
+        float baseAlpha = 0.30;
+
+        // ── Model-space face normal ──
+        vec3 dpdx = dFdx(modelPos);
+        vec3 dpdy = dFdy(modelPos);
+        vec3 faceNormal = normalize(cross(dpdx, dpdy));
+
+        // ── Grid: thin lines, suppressed on complex geometry ──
+        vec3 gridColor = vec3(1.0, 1.0, 0.0);
+        float gridFactor = getGridFactor(modelPos, faceNormal, 1.0, 0.015);
+
+        // Compose base + grid
+        vec3 finalColor = mix(baseColor, gridColor, gridFactor);
+        float finalAlpha = max(baseAlpha, gridFactor);
+
+        // ── Edge glow: narrow, deep red ──
+        vec3 glowColor = vec3(0.9, 0.08, 0.0);  // deep red
+        float glowWidth = 0.03;
+        float glowIntensity = 3.5;
+
+        float glowFactor = clamp(1.0 - clamp(distFromEdge / max(glowWidth, 0.001), 0.0, 1.0), 0.0, 1.0);
+        glowFactor = glowFactor * glowFactor;  // Squared for sharp falloff
+
+        vec3 glowContribution = glowColor * glowFactor * glowIntensity;
+        finalColor += glowContribution;
+        finalAlpha = max(finalAlpha, glowFactor);
+
+        finalAlpha = max(finalAlpha, 0.15);
+
+        material.baseColor = vec4(finalColor, finalAlpha);
+    }
+}

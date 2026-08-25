@@ -1,43 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.MultiSetSDK" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+
+    <!--
+      One theme definition for both light and dark: every colour here resolves through a
+      semantic token, and values-night/colors.xml swaps the token values. A second copy of
+      this file under values-night/ is what previously dropped the whole palette in dark mode.
+    -->
+    <style name="Base.Theme.MultiSetSDK" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorPrimaryVariant">@color/brand_ink</item>
+        <item name="colorOnPrimary">@color/on_brand</item>
+        <item name="colorSecondary">@color/brand</item>
+        <item name="colorSecondaryVariant">@color/brand_ink</item>
+        <item name="colorOnSecondary">@color/on_brand</item>
+
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_hi</item>
+        <item name="colorOnBackground">@color/text_hi</item>
+        <item name="colorError">@color/danger_ink</item>
+        <item name="colorOnError">@color/on_brand</item>
+
+        <item name="android:textColorPrimary">@color/text_hi</item>
+        <item name="android:textColorSecondary">@color/text_mid</item>
+        <item name="android:textColorHint">@color/text_low</item>
+
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/light_system_bars</item>
+
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.MultiSetSDK.Dialog</item>
+        <item name="materialButtonStyle">@style/Widget.MultiSetSDK.Button.Primary</item>
+
+        <!-- Surfaces are explicit tokens; Material's automatic white-over-surface blend by
+             elevation only fights them and washes cards/dialogs out to mid-grey. -->
+        <item name="elevationOverlayEnabled">false</item>
     </style>
 
     <style name="Theme.MultiSetSDK" parent="Base.Theme.MultiSetSDK" />
 
-    <style name="Theme.MultiSetVPS" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_dark</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="colorSecondary">@color/accent</item>
-        <item name="colorSecondaryVariant">@color/accent</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <item name="android:statusBarColor">@color/primary_dark</item>
-    </style>
-
-    <style name="Theme.MultiSetVPS.NoActionBar">
+    <!-- AppCompat-based theme required by Sceneform ArFragment; chrome floats over the camera. -->
+    <style name="Theme.MultiSetSDK.AR" parent="Theme.MultiSetSDK">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- AR chrome is always light-on-dark, whatever the app theme. -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
-    <!-- FAB Circular Style with Border -->
+    <!-- Full-screen settings window -->
+    <style name="Theme.MultiSetSDK.Settings" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">@color/on_brand</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_hi</item>
+        <item name="android:textColorPrimary">@color/text_hi</item>
+        <item name="android:textColorSecondary">@color/text_mid</item>
+        <item name="materialButtonStyle">@style/Widget.MultiSetSDK.Button.Primary</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.MultiSetSDK.Dialog</item>
+        <item name="elevationOverlayEnabled">false</item>
+    </style>
+
+    <!-- Kept for compatibility with SettingsDialogFragment's existing reference -->
+    <style name="FullScreenDialog" parent="Theme.MultiSetSDK.Settings" />
+
+    <!-- ── Alert dialogs ──────────────────────────────────────────────────── -->
+
+    <style name="ThemeOverlay.MultiSetSDK.Dialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <!-- Without this, Material blends white over colorSurface by elevation and the
+             dialog washes out to mid-grey instead of using the token. -->
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="colorSurface">@color/dialog_surface</item>
+        <item name="colorOnSurface">@color/text_hi</item>
+        <item name="colorPrimary">@color/brand_ink</item>
+        <item name="android:textColorPrimary">@color/text_hi</item>
+        <item name="android:textColorSecondary">@color/text_mid</item>
+        <item name="alertDialogStyle">@style/MaterialAlertDialog.MultiSetSDK</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.MultiSetSDK.DialogTitle</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/TextAppearance.MultiSetSDK.DialogBody</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.MultiSetSDK.Dialog.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.MultiSetSDK.Dialog.Button.Text</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.MultiSetSDK.Dialog.Button.Text</item>
+    </style>
+
+    <style name="MaterialAlertDialog.MultiSetSDK" parent="MaterialAlertDialog.MaterialComponents">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.MultiSetSDK.Dialog</item>
+        <item name="backgroundInsetStart">28dp</item>
+        <item name="backgroundInsetEnd">28dp</item>
+    </style>
+
+    <style name="ShapeAppearance.MultiSetSDK.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">24dp</item>
+    </style>
+
+    <!-- Kept: referenced by the AR capture button shape -->
     <style name="ShapeAppearance.Fab.Circular" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>
     </style>
-
-    <!-- Full-screen, DayNight-aware dialog used by the settings window. -->
-    <style name="FullScreenDialog" parent="Theme.MaterialComponents.DayNight.Dialog">
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:windowIsFloating">false</item>
-        <item name="android:windowBackground">?android:attr/colorBackground</item>
-        <item name="android:statusBarColor">@color/purple</item>
-        <item name="colorPrimary">@color/purple</item>
-    </style>
-
 </resources>

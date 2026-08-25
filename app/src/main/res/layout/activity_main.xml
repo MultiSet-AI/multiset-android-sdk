@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,261 +21,263 @@
         <!-- ── Header ── -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-        <LinearLayout
-            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:paddingTop="24dp"
-            android:paddingBottom="4dp">
+            android:paddingTop="20dp">
 
-            <ImageView
-                android:id="@+id/logo"
-                android:layout_width="100dp"
-                android:layout_height="66dp"
-                android:contentDescription="@string/app_name"
-                android:scaleType="fitCenter"
-                android:src="@drawable/sdk_logo" />
-
-            <TextView
-                android:id="@+id/titleText"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/multiset_vps_samples"
-                android:textColor="@color/purple"
-                android:textSize="26sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingHorizontal="32dp"
+                android:paddingTop="12dp">
+
+                <ImageView
+                    android:id="@+id/logo"
+                    android:layout_width="76dp"
+                    android:layout_height="52dp"
+                    android:contentDescription="@string/app_name"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/sdk_logo" />
+
+                <TextView
+                    android:id="@+id/titleText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/multiset_vps_samples"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Title" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:text="@string/app_tagline"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Subtitle" />
+            </LinearLayout>
 
             <ImageButton
                 android:id="@+id/settingsButton"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
                 android:layout_gravity="end|top"
-                android:layout_marginTop="20dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/settings"
                 android:src="@drawable/ic_settings"
-                android:tint="?android:attr/textColorPrimary" />
+                app:tint="@color/text_mid" />
         </FrameLayout>
 
-        <!-- ── Auth Button ── -->
+        <!-- ── Auth ── -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/authButton"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="20dp"
-            android:text="@string/authenticate"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            app:backgroundTint="@color/purple"
-            app:cornerRadius="26dp"
-            app:icon="@drawable/ic_lock"
-            app:iconGravity="textStart"
-            app:iconSize="18dp" />
-
-        <!-- ── Localization Card ── -->
-        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.MultiSetSDK.Button.Tonal.Brand"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            app:cardBackgroundColor="?attr/colorSurface"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border_gray"
-            app:strokeWidth="1dp">
+            android:layout_marginTop="24dp"
+            android:text="@string/authenticate"
+            app:icon="@drawable/ic_lock" />
+
+        <TextView
+            android:id="@+id/authStatusChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_chip_success"
+            android:drawablePadding="8dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="9dp"
+            android:text="@string/authenticated"
+            android:textColor="@color/success_ink"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:drawableStartCompat="@drawable/ic_check"
+            app:drawableTint="@color/success_ink" />
+
+        <!-- ── Localization ── -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.MultiSetSDK.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/localization_label"
-                    android:textColor="@color/purple"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <!-- Map code row (shown when configured) -->
                 <LinearLayout
-                    android:id="@+id/mapCodeContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/rounded_purple_tint"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="8dp"
-                    android:visibility="gone">
+                    android:orientation="horizontal">
 
                     <ImageView
-                        android:layout_width="14dp"
-                        android:layout_height="14dp"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_tile_brand"
+                        android:contentDescription="@null"
+                        android:padding="8dp"
                         android:src="@drawable/ic_map"
-                        app:tint="#B37B2CBF" />
+                        app:tint="@color/brand_ink" />
 
                     <TextView
-                        android:id="@+id/mapCodeText"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
+                        android:layout_marginStart="12dp"
                         android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
+                        android:text="@string/localization_label"
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/brand_ink" />
                 </LinearLayout>
 
-                <!-- No map configured text -->
+                <!-- Map code (shown when configured) -->
+                <TextView
+                    android:id="@+id/mapCodeText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/rounded_purple_tint"
+                    android:drawablePadding="8dp"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="10dp"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Mono"
+                    android:visibility="gone"
+                    app:drawableStartCompat="@drawable/ic_map"
+                    app:drawableTint="@color/brand_ink" />
+
                 <TextView
                     android:id="@+id/noMapText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="14dp"
                     android:text="@string/no_map_configured"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Meta"
                     android:visibility="gone" />
 
-                <!-- Mode label -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="18dp"
                     android:text="@string/mode_label"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Label" />
 
-                <!-- Mode toggle -->
                 <com.google.android.material.button.MaterialButtonToggleGroup
                     android:id="@+id/modeToggleGroup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="8dp"
                     app:selectionRequired="true"
                     app:singleSelection="true">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/singleFrameButton"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.MultiSetSDK.Button.Segment"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/single_frame"
-                        android:textSize="13sp" />
+                        android:text="@string/single_frame" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/multiFrameButton"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.MultiSetSDK.Button.Segment"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/multi_frame"
-                        android:textSize="13sp" />
+                        android:text="@string/multi_frame" />
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
-                <!-- Start Localization Button -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/localizationButton"
+                    style="@style/Widget.MultiSetSDK.Button.Primary"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/start_localization"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="@color/purple"
-                    app:cornerRadius="24dp" />
-
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/start_localization" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ── Object Tracking Card ── -->
+        <!-- ── Object tracking ── -->
         <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.MultiSetSDK.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="?attr/colorSurface"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border_gray"
-            app:strokeWidth="1dp">
+            android:layout_marginTop="14dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
-                <!-- Object Tracking header row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_tile_accent"
+                        android:contentDescription="@null"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_cube"
+                        app:tint="@color/accent_ink" />
 
                     <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
                         android:layout_weight="1"
                         android:text="@string/object_tracking"
-                        android:textColor="@color/teal"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/accent_ink" />
 
                     <TextView
                         android:id="@+id/objectCountBadge"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="@drawable/rounded_badge_bg"
-                        android:paddingHorizontal="10dp"
+                        android:paddingHorizontal="9dp"
                         android:paddingVertical="4dp"
-                        android:textColor="@color/text_secondary"
+                        android:textColor="@color/text_mid"
                         android:textSize="12sp"
                         android:textStyle="bold"
                         android:visibility="gone" />
                 </LinearLayout>
 
-                <!-- No object codes message -->
                 <TextView
                     android:id="@+id/noObjectCodesText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="14dp"
                     android:text="@string/no_object_codes"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Meta" />
 
-                <!-- Object codes container (populated in code) -->
                 <LinearLayout
                     android:id="@+id/objectCodesContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="14dp"
                     android:background="@drawable/rounded_teal_tint"
                     android:orientation="vertical"
                     android:paddingHorizontal="12dp"
-                    android:paddingVertical="8dp"
+                    android:paddingVertical="10dp"
                     android:visibility="gone" />
 
-                <!-- Start Object Tracking Button -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/objectTrackingButton"
+                    style="@style/Widget.MultiSetSDK.Button.Tonal.Accent"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/start_object_tracking"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    app:backgroundTint="@color/teal"
-                    app:cornerRadius="24dp" />
-
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/start_object_tracking" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -276,13 +286,14 @@
             android:id="@+id/instructionsText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="24dp"
+            android:layout_marginTop="22dp"
+            android:layout_marginBottom="28dp"
+            android:background="?attr/selectableItemBackground"
             android:gravity="center"
+            android:paddingVertical="8dp"
             android:text="@string/footer_credentials"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp"
-            android:textAlignment="center" />
+            android:textColor="@color/text_low"
+            android:textSize="12sp" />
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

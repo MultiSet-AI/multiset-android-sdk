@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -37,7 +43,7 @@
             <ProgressBar
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:indeterminateTint="@color/primary" />
+                android:indeterminateTint="@color/ar_brand" />
 
             <TextView
                 android:id="@+id/singleFrameStatusText"
@@ -107,7 +113,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:text="@string/localization_instruction"
-                android:textColor="#AAAAAA"
+                android:textColor="@color/ar_on_mid"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:lineSpacingExtra="4dp" />
@@ -148,7 +154,7 @@
             <ProgressBar
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:indeterminateTint="@color/primary" />
+                android:indeterminateTint="@color/ar_brand" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -165,65 +171,68 @@
     <!-- Status Overlay (top) - Hidden by default -->
     <LinearLayout
         android:id="@+id/statusOverlay"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_margin="8dp"
-        android:alpha=".4"
-        android:background="@drawable/overlay_background"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_ar_chip"
         android:orientation="vertical"
-        android:padding="8dp"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/closeButton"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintWidth_default="wrap">
 
         <TextView
             android:id="@+id/statusText"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/tracking_initializing"
-            android:textColor="@android:color/white"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textAppearance="@style/TextAppearance.MultiSetSDK.ArStatus" />
 
         <TextView
             android:id="@+id/localizationStatus"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
             android:text="@string/ready_to_localize"
-            android:textColor="@android:color/white"
-            android:textSize="14sp" />
+            android:textAppearance="@style/TextAppearance.MultiSetSDK.ArMeta" />
 
     </LinearLayout>
 
     <!-- Reset Button (bottom left) - Hidden by default -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/resetButton"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
         android:layout_width="wrap_content"
-        android:layout_height="52dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginBottom="24dp"
+        android:layout_height="46dp"
+        android:layout_marginStart="18dp"
+        android:layout_marginBottom="42dp"
+        android:background="@drawable/bg_ar_chip"
+        android:paddingHorizontal="20dp"
         android:text="@string/reset"
+        android:textAllCaps="false"
+        android:textColor="@color/ar_on"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:visibility="gone"
-        app:backgroundTint="@color/orange"
-        app:cornerRadius="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:rippleColor="#33FFFFFF" />
 
     <!-- Localize Button (bottom right) - Always visible -->
-    <ImageView
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/localizeButton"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="24dp"
+        style="@style/Widget.MultiSetSDK.Fab.Capture"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="22dp"
+        android:layout_marginBottom="30dp"
         android:contentDescription="@string/localize"
-        android:src="@drawable/capture_button"
-        android:scaleType="fitCenter"
-        android:visibility="visible"
-        android:clickable="true"
-        android:focusable="true"
+        android:src="@drawable/ic_capture"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -232,21 +241,21 @@
         android:id="@+id/closeButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
+        style="@style/Widget.MultiSetSDK.Fab.ArNeutral"
+        android:layout_margin="14dp"
+        android:contentDescription="@string/close"
         android:src="@drawable/ic_close"
-        app:backgroundTint="@color/primary"
         app:fabSize="mini"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="@android:color/white" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <!-- GPS Status Indicator -->
     <LinearLayout
         android:id="@+id/gpsIndicator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="10dp"
         android:background="@drawable/gps_indicator_background"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -256,7 +265,7 @@
         android:paddingBottom="6dp"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toBottomOf="@id/statusOverlay">
 
         <!-- GPS Icon/Dot -->
         <View
@@ -272,7 +281,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="GPS"
-            android:textColor="@android:color/white"
+            android:textColor="@color/ar_on"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -285,7 +294,7 @@
         android:layout_height="wrap_content"
         android:indeterminate="true"
         android:visibility="gone"
-        app:indicatorColor="@color/primary"
+        app:indicatorColor="@color/ar_brand"
         app:trackColor="@android:color/transparent"
         app:trackThickness="3dp"
         app:layout_constraintBottom_toBottomOf="parent"

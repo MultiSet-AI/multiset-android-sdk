@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
 Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<!--
 Configuration settings window for the demo app. Lives in the app module
 (NOT the SDK) as a reference for native SDK developers. Field rows are added
 programmatically by SettingsDialogFragment so the field list stays in one place.
@@ -19,12 +24,12 @@ Colors use theme attributes so the window adapts to light and dark themes.
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="?attr/actionBarSize"
-        android:background="@color/purple"
+        android:background="@color/bg"
         app:navigationIcon="@drawable/ic_close"
-        app:navigationIconTint="@android:color/white"
+        app:navigationIconTint="@color/text_mid"
         app:title="@string/settings_title"
         app:titleCentered="false"
-        app:titleTextColor="@android:color/white" />
+        app:titleTextColor="@color/text_hi" />
 
     <!-- ── Scrollable form ── -->
     <androidx.core.widget.NestedScrollView
@@ -45,9 +50,10 @@ Colors use theme attributes so the window adapts to light and dark themes.
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border_gray"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/outline"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -62,11 +68,10 @@ Colors use theme attributes so the window adapts to light and dark themes.
                         android:drawablePadding="8dp"
                         android:gravity="center_vertical"
                         app:drawableStartCompat="@drawable/ic_map"
-                        app:drawableTint="@color/purple"
+                        app:drawableTint="@color/brand_ink"
                         android:text="@string/settings_section_map"
-                        android:textColor="@color/purple"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/brand_ink" />
 
                     <LinearLayout
                         android:id="@+id/mapContainer"
@@ -82,9 +87,10 @@ Colors use theme attributes so the window adapts to light and dark themes.
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border_gray"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/outline"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -99,14 +105,50 @@ Colors use theme attributes so the window adapts to light and dark themes.
                         android:drawablePadding="8dp"
                         android:gravity="center_vertical"
                         app:drawableStartCompat="@drawable/ic_cube"
-                        app:drawableTint="@color/teal"
+                        app:drawableTint="@color/accent_ink"
                         android:text="@string/settings_section_object"
-                        android:textColor="@color/teal"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/accent_ink" />
 
                     <LinearLayout
                         android:id="@+id/objectContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- API Environment card (read-only) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/outline"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:drawablePadding="8dp"
+                        android:gravity="center_vertical"
+                        app:drawableStartCompat="@drawable/ic_cloud"
+                        app:drawableTint="@color/brand_ink"
+                        android:text="@string/settings_section_environment"
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/brand_ink" />
+
+                    <LinearLayout
+                        android:id="@+id/environmentContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
@@ -128,25 +170,21 @@ Colors use theme attributes so the window adapts to light and dark themes.
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/resetButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.MultiSetSDK.Button.Segment"
             android:layout_width="0dp"
-            android:layout_height="52dp"
+            android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
             android:layout_weight="1"
-            android:text="@string/settings_reset"
-            android:textColor="@color/purple"
-            app:cornerRadius="26dp"
-            app:strokeColor="@color/purple" />
+            android:minHeight="52dp"
+            android:text="@string/settings_reset" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveButton"
+            style="@style/Widget.MultiSetSDK.Button.Primary"
             android:layout_width="0dp"
-            android:layout_height="52dp"
+            android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:text="@string/settings_save"
-            android:textStyle="bold"
-            app:backgroundTint="@color/purple"
-            app:cornerRadius="26dp" />
+            android:text="@string/settings_save" />
     </LinearLayout>
 </LinearLayout>

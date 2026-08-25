@@ -1,0 +1,111 @@
+material {
+    name : OutlineOnly,
+    shadingModel : unlit,
+    blending : transparent,
+    culling : front,
+    depthWrite : false,
+    variables : [
+        variable0
+    ],
+    parameters : [
+        { type : float4, name : outlineColor },
+        { type : float,  name : outlineWidth },
+        { type : float,  name : glowIntensity },
+        { type : float,  name : animTime },
+        { type : float,  name : sparkFrequency },
+        { type : float,  name : sparkIntensity },
+        { type : float,  name : rimPower },
+        { type : float,  name : edgeCutoff }
+    ]
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        float4 pos = getPosition();
+        material.variable0 = pos;
+        float3 dir = normalize(pos.xyz);
+        material.worldPosition.xyz += dir * materialParams.outlineWidth;
+    }
+}
+
+fragment {
+    float hash2d(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+
+    float noise2d(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        float a = hash2d(i);
+        float b = hash2d(i + vec2(1.0, 0.0));
+        float c = hash2d(i + vec2(0.0, 1.0));
+        float d = hash2d(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+
+        vec3 modelPos = variable_variable0.xyz;
+        vec3 worldPos = getWorldPosition();
+
+        // Face normal from screen-space derivatives (always roughly camera-facing)
+        vec3 dpdx_v = dFdx(worldPos);
+        vec3 dpdy_v = dFdy(worldPos);
+        vec3 faceNormal = normalize(cross(dpdx_v, dpdy_v));
+
+        // View direction: use -worldPos as approximation (matches iOS shader)
+        // This avoids relying on getWorldCameraPosition() which may be unreliable
+        vec3 viewDir = normalize(-worldPos);
+
+        // abs(dot) ensures consistent values regardless of back-face normal flip:
+        //   Interior (face roughly toward/away camera): abs(dot) ≈ 1 → rim ≈ 0
+        //   Edge (face perpendicular to view):          abs(dot) ≈ 0 → rim ≈ 1
+        float ndotv = abs(dot(faceNormal, viewDir));
+
+        // Sharp rim: high rimPower makes only near-perpendicular fragments visible
+        float rim = pow(max(1.0 - ndotv, 0.0), materialParams.rimPower);
+
+        // Hard cutoff: discard interior (non-edge) fragments
+        if (rim < materialParams.edgeCutoff) {
+            material.baseColor = vec4(0.0);
+            return;
+        }
+
+        // Normalize rim above cutoff for smooth edge glow
+        float edgeFactor = smoothstep(materialParams.edgeCutoff, 1.0, rim);
+
+        // Animation
+        float time = materialParams.animTime;
+
+        vec2 sparkCoord1 = modelPos.xy * materialParams.sparkFrequency;
+        float spark1 = noise2d(sparkCoord1 + time * 0.5);
+        spark1 = pow(clamp(spark1, 0.0, 1.0), 2.0);
+
+        vec2 sparkCoord2 = modelPos.xz * materialParams.sparkFrequency * 1.7;
+        float spark2 = noise2d(sparkCoord2 - time * 0.3);
+        spark2 = pow(clamp(spark2, 0.0, 1.0), 3.0);
+
+        float wave = sin(modelPos.y * 10.0 - time * 3.0) * 0.5 + 0.5;
+        wave = pow(clamp(wave, 0.0, 1.0), 2.0);
+
+        float sparkHash = hash2d(floor(sparkCoord1));
+        float sparkMask = step(0.6, sparkHash);
+        float combinedSpark = mix(spark1, spark2, 0.5) * sparkMask;
+        combinedSpark = max(combinedSpark, wave * 0.3);
+
+        float pulse = sin(time * 2.0) * 0.3 + 0.7;
+        float animationIntensity = 1.0 + combinedSpark * materialParams.sparkIntensity;
+        animationIntensity *= pulse;
+
+        // Final color — only at edges
+        vec3 finalColor = materialParams.outlineColor.rgb * materialParams.glowIntensity * animationIntensity;
+        finalColor *= (edgeFactor * 0.7 + 0.3);
+
+        float finalAlpha = edgeFactor * clamp(animationIntensity * 0.5, 0.0, 1.0)
+                           * materialParams.outlineColor.a;
+
+        material.baseColor = vec4(finalColor, finalAlpha);
+    }
+}

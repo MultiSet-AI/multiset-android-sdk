@@ -1,19 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!--
+      Semantic tokens. Light values live here; values-night/colors.xml overrides the same
+      names for dark. Layouts and styles must reference these, never raw hex, so a theme
+      change is a one-file edit.
+      Every text-on-background pair below meets WCAG AA (4.5:1).
+    -->
+
+    <!-- Surfaces -->
+    <color name="bg">#F6F5FA</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="surface_variant">#EFEDF7</color>
+    <color name="outline">#DAD7E6</color>
+
+    <color name="dialog_surface">#FFFFFFFF</color>
+
+    <!-- Text -->
+    <color name="text_hi">#16151F</color>
+    <color name="text_mid">#54526A</color>
+    <color name="text_low">#66647A</color>
+
+    <!-- Brand (purple) — drives primary actions -->
+    <color name="brand">#6D28D9</color>
+    <color name="on_brand">#FFFFFFFF</color>
+    <color name="brand_ink">#5B21B6</color>
+    <color name="brand_container">#EDE7FE</color>
+
+    <!-- Accent (cyan) — object-tracking identity, used tonally -->
+    <color name="accent_ink">#08657C</color>
+    <color name="accent_container">#DCF2F8</color>
+
+    <!-- Status -->
+    <color name="success_ink">#0F6E3D</color>
+    <color name="success_container">#DCF5E6</color>
+    <color name="danger_ink">#A61B1B</color>
+    <color name="danger_container">#FBE4E4</color>
+
+    <!--
+      AR chrome is drawn over a live camera feed, so it stays dark in both themes.
+    -->
+    <color name="ar_scrim">#B3000000</color>
+    <color name="ar_scrim_strong">#E6000000</color>
+    <color name="ar_on">#FFFFFFFF</color>
+    <color name="ar_on_mid">#C9C6D6</color>
+    <color name="ar_brand">#8B5CF6</color>
+    <color name="ar_accent">#22D3EE</color>
+    <color name="ar_warning">#FBBF24</color>
+
+    <!-- Legacy names still referenced by the launcher icon / older drawables -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-
-    <color name="primary">#2196F3</color>
-    <color name="primary_dark">#1976D2</color>
-    <color name="accent">#03DAC5</color>
-    <color name="orange">#FF9800</color>
-    <color name="text_primary">#212121</color>
-    <color name="text_secondary">#757575</color>
-    <color name="success">#4CAF50</color>
-    <color name="error">#F44336</color>
-
-    <color name="purple">#7B2CBF</color>
-    <color name="teal">#00BCD4</color>
-    <color name="border_gray">#40808080</color>
-
+    <color name="purple">#6D28D9</color>
+    <color name="teal">#0891B2</color>
 </resources>

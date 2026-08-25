@@ -1,11 +1,12 @@
 <resources>
-    <string name="app_name">MultiSet SDK</string>
+    <string name="app_name">MultiSet XR SDK</string>
 
+    <!-- Merged from android-sdk-internal -->
     <string name="info_text">To get ClientId and ClientSecret visit:\n<b><u> https://developer.multiset.ai/credentials</u></b></string>
 
-    <string name="tracking_initializing">Tracking Initializing...</string>
+    <string name="tracking_initializing">Starting AR…</string>
     <string name="tracking_objects">Tracking objects…</string>
-    <string name="start_tracking">Start Tracking</string>
+    <string name="start_tracking">Start tracking</string>
     <string name="ready_to_localize">Ready to localize</string>
     <string name="reset">Reset</string>
     <string name="localize">Localize</string>
@@ -15,16 +16,16 @@
     <string name="auth">Auth</string>
     <string name="authenticate">Authenticate</string>
     <string name="authenticated">Authenticated</string>
-    <string name="authenticating">Authenticating\u2026</string>
+    <string name="authenticating">Authenticating…</string>
     <string name="localization_label">Localization</string>
     <string name="mode_label">Mode</string>
-    <string name="single_frame">Single Frame</string>
-    <string name="multi_frame">Multi Frame</string>
-    <string name="start_localization">Start Localization</string>
-    <string name="start_object_tracking">Start Object Tracking</string>
+    <string name="single_frame">Single frame</string>
+    <string name="multi_frame">Multi frame</string>
+    <string name="start_localization">Start localization</string>
+    <string name="start_object_tracking">Start object tracking</string>
     <string name="no_map_configured">No map configured. Set mapCode or mapSetCode in build.gradle.</string>
     <string name="no_object_codes">No object codes configured. Add codes in build.gradle to enable tracking.</string>
-    <string name="footer_credentials">To get credentials visit developer.multiset.ai/credentials</string>
+    <string name="footer_credentials">Get credentials at developer.multiset.ai/credentials</string>
 
     <!-- Localization UI -->
     <string name="localization_instruction">Look forward and\nmove device slowly</string>
@@ -32,8 +33,8 @@
     <string name="capturing_frames">Capturing frames…</string>
     <string name="ar_background">AR Background</string>
     <string name="phone_scanning">Phone scanning animation</string>
-    <string name="localization_success">Localization Success</string>
-    <string name="localization_failed">Localization Failed</string>
+    <string name="localization_success">Localized</string>
+    <string name="localization_failed">Couldn\'t localize — keep scanning</string>
 
     <!-- Single/Multi Frame Localization -->
     <string name="single_frame_localization">Single Frame Localization</string>
@@ -53,4 +54,42 @@
     <string name="settings_section_object">Object Tracking</string>
     <string name="settings_save">Save</string>
     <string name="settings_reset">Reset</string>
+    <string name="error_title_object_tracking">Object tracking failed</string>
+    <string name="error_title_localization">Localization failed</string>
+    <string name="error_title_with_code">%1$s (%2$d)</string>
+    <string name="error_title_auth">Authentication failed</string>
+    <string name="error_title_network">Network error</string>
+    <string name="error_body_auth">Your credentials were rejected (%1$d). Check MULTISET_CLIENT_ID and MULTISET_CLIENT_SECRET in multiset.properties.</string>
+    <string name="error_body_network">Couldn\'t reach the MultiSet API. Check your connection and try again.</string>
+    <string name="error_dismiss">OK</string>
+    <string name="app_tagline">Visual positioning &amp; object tracking</string>
+    <string name="tracking_failed_short">Couldn\'t find the object — keep scanning</string>
+    <string name="localizing_status">Localizing…</string>
+    <string name="initializing_status">Starting AR…</string>
+    <string name="close">Close</string>
+    <string name="configuration_required">Configuration required</string>
+    <string name="configuration_required_body">Add your credentials and at least one map or object code to multiset.properties, then rebuild.</string>
+    <string name="tracked_object">Tracking %1$s</string>
+    <string name="localized_map">Localized \u00b7 %1$s</string>
+    <string name="tracking_normal">Tracking</string>
+    <string name="tracking_paused">Tracking paused \u2014 move slowly</string>
+    <string name="tracking_stopped">Tracking stopped</string>
+    <string name="close_tracking_title">Leave object tracking?</string>
+    <string name="close_localization_title">Leave localization?</string>
+    <string name="close_scene_body">The AR session will end.</string>
+    <string name="close_confirm">Leave</string>
+    <string name="close_cancel">Stay</string>
+    <!-- Pose consistency (false-positive) check -->
+    <string name="false_positive_title">Pose rejected</string>
+    <string name="false_positive_body">The server matched your camera image to a different part of the space.\n\nIts pose sits %1$.1f m from where your device\'s own motion says the map should be (limit %2$.0f m), so the response was discarded and the map was left where it is.</string>
+    <string name="false_positive_streak">Discarded %1$d responses in a row.</string>
+    <string name="false_positive_advice">Move a few steps, point at a well-lit, distinctive area and localize again.</string>
+    <string name="false_positive_reset_hint">If the map itself looks misplaced, tap Reset — the next response will be trusted as the new reference.</string>
+    <string name="false_positive_status">Pose rejected — localize again</string>
+    <string name="false_positive_dismiss">OK</string>
+    <!-- API environment (read-only) -->
+    <string name="settings_section_environment">API Environment</string>
+    <string name="settings_base_url_label">Base URL</string>
+    <string name="settings_base_url_production">Production. Set MULTISET_BASE_URL in multiset.properties to point this build at another deployment.</string>
+    <string name="settings_base_url_custom">Update the MULTISET_BASE_URL in multiset.properties to point this build at another deployment..</string>
 </resources>

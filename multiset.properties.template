@@ -1,0 +1,21 @@
+# ============================================================
+# MULTISET SDK CONFIGURATION TEMPLATE
+# Copy to multiset.properties (gitignored) and fill in.
+# Get credentials at: https://developer.multiset.ai/credentials
+# ============================================================
+
+# API Host (Optional)
+# Leave empty to use the production host: https://api.multiset.ai
+MULTISET_BASE_URL=
+
+# Authentication Credentials (Required)
+MULTISET_CLIENT_ID=
+MULTISET_CLIENT_SECRET=
+
+# Map Configuration (Provide one of the following)
+MULTISET_MAP_CODE=
+MULTISET_MAP_SET_CODE=
+
+# Object Tracking Configuration (comma-separated object codes, max 10)
+# example OBJ_001, OBJ_002 ...
+MULTISET_OBJECT_CODES=
