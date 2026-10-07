@@ -1,0 +1,22 @@
+// Editing this file changes nothing until it is recompiled into
+// app/src/main/res/raw/occluder_material.filamat with matc from Filament 1.57.1 — the
+// release Sceneform pulls. Anything else produces a MAT_VERSION the runtime rejects:
+//   matc -a opengl -p mobile -o app/src/main/res/raw/occluder_material.filamat \
+//        app/src/main/assets/materials/occluder.mat
+//
+// Depth-only pass that hides the inside of the outline shell (iOS OcclusionMaterial).
+material {
+    name : Occluder,
+    shadingModel : unlit,
+    blending : opaque,
+    colorWrite : false,
+    depthWrite : true,
+    culling : back
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        material.baseColor = vec4(0.0);
+    }
+}

@@ -41,8 +41,16 @@ fun View.padForSystemBars(top: Boolean = false, bottom: Boolean = false) {
 /**
  * Insets a floating view by shifting its margins — used for AR overlay chrome, where the camera
  * surface underneath must stay full-bleed and only the controls move.
+ *
+ * [extraBottom] is a lambda rather than a value because this listener owns the bottom margin and
+ * re-runs on every inset pass: a caller whose clearance changes later re-dispatches insets instead
+ * of assigning a margin that the next pass would overwrite.
  */
-fun View.marginForSystemBars(top: Boolean = false, bottom: Boolean = false) {
+fun View.marginForSystemBars(
+    top: Boolean = false,
+    bottom: Boolean = false,
+    extraBottom: () -> Int = { 0 },
+) {
     val params = layoutParams as? ViewGroup.MarginLayoutParams ?: return
     val baseTopMargin = params.topMargin
     val baseBottomMargin = params.bottomMargin
@@ -50,7 +58,7 @@ fun View.marginForSystemBars(top: Boolean = false, bottom: Boolean = false) {
         val bars = insets.getInsets(BAR_TYPES)
         view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             if (top) topMargin = baseTopMargin + bars.top
-            if (bottom) bottomMargin = baseBottomMargin + bars.bottom
+            if (bottom) bottomMargin = baseBottomMargin + bars.bottom + extraBottom()
         }
         insets
     }

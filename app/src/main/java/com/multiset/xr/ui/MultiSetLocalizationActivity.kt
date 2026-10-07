@@ -15,10 +15,14 @@ import android.widget.Toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.ar.core.Config
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
+import com.multiset.sdk.model.AnchorTrust
+import com.multiset.sdk.model.GateRejection
+import com.multiset.xr.ar.notifyArTrackingLost
 import com.google.ar.sceneform.Node
 import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
@@ -29,6 +33,7 @@ import com.multiset.xr.ar.ArFrameSource
 import com.multiset.xr.ar.GizmoNode
 import com.multiset.xr.ar.MeshRenderer
 import com.multiset.xr.R
+import com.multiset.sdk.model.FalsePositiveCause
 import com.multiset.sdk.model.FalsePositiveInfo
 import com.multiset.xr.config.LocalizationConfig
 import com.multiset.xr.databinding.ActivityLocalizationBinding
@@ -36,6 +41,7 @@ import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.camera.ImageProcessor
 import com.multiset.sdk.model.LocalizationMode
 import com.multiset.sdk.session.LocalizationSession
+import com.multiset.sdk.ui.MultiSetWatermark
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -55,12 +61,14 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
     private var phoneAnimator: ObjectAnimator? = null
     private var meshRenderer: MeshRenderer? = null
     private var meshLoadJob: Job? = null
+    private var meshToggle: MeshToggle? = null
 
     private var isSessionConfigured = false
     private var sessionStarted = false
     private var pendingAutoStart = false
     private var lastTrackingState = TrackingState.TRACKING
     private var localizationMode: LocalizationMode = LocalizationMode.MULTI_FRAME
+    private var watermarkClearance = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -165,16 +173,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         // Stays hidden until a pose exists; otherwise it floats in front of the camera at origin.
         gizmoNode?.hide()
 
-        meshRenderer = MeshRenderer(this).apply {
-            // Matches reference: provide the live camera world position only while tracking,
-            // otherwise null so the reveal animation skips re-centering on a stale pose.
-            setCameraPositionProvider {
-                val f = arFragment.arSceneView.arFrame
-                if (f != null && f.camera.trackingState == TrackingState.TRACKING)
-                    arFragment.arSceneView.scene.camera.worldPosition
-                else null
-            }
-        }
+        meshRenderer = MeshRenderer(this)
 
         val session = MultiSetSDK.localizationSession(frameSource, localizationMode).apply {
             backgroundLocalization = LocalizationConfig.backgroundLocalization
@@ -188,6 +187,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             queryMode = LocalizationConfig.queryMode
             poseConsistencyCheck = LocalizationConfig.poseConsistencyCheck
             poseConsistencyThreshold = LocalizationConfig.poseConsistencyThreshold
+            poseConsistencyYawThreshold = LocalizationConfig.poseConsistencyYawThreshold
             hintMapCodes = LocalizationConfig.hintMapCodes
 
             onLocalizationRequested = {
@@ -217,7 +217,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                     }
 
                     binding.statusText.text = getString(R.string.localized_map, result.mapCode)
-                    binding.localizationStatus.text = getString(com.multiset.xr.R.string.ready_to_localize)
+                    binding.localizationStatus.text =
+                        getString(R.string.anchor_trust_status, trustLabel(MultiSetSDK.anchorTrust))
                     binding.statusOverlay.visibility = View.VISIBLE
                     binding.resetButton.visibility = View.VISIBLE
 
@@ -264,8 +265,34 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                     binding.statusText.text = getString(R.string.false_positive_status)
                     binding.statusOverlay.visibility = View.VISIBLE
 
-                    Log.w(TAG, "Discarded false positive: ${info.summary}")
+                    Log.w(TAG, "Discarded ${info.summary}")
                     if (LocalizationConfig.showAlerts) showFalsePositiveDialog(info)
+                }
+            }
+
+            onLocalizationCorrected = { from, to, trust ->
+                val moved = from.position.let { a ->
+                    val dx = to.position.x - a.x; val dy = to.position.y - a.y; val dz = to.position.z - a.z
+                    kotlin.math.sqrt(dx * dx + dy * dy + dz * dz)
+                }
+                Log.w(TAG, "Map anchor displaced by $moved m, now $trust")
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    if (LocalizationConfig.showAlerts) {
+                        Toast.makeText(
+                            this@MultiSetLocalizationActivity,
+                            getString(R.string.localization_corrected, moved),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+
+            onAnchorTrustChanged = { trust ->
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    binding.localizationStatus.text =
+                        getString(R.string.anchor_trust_status, trustLabel(trust))
                 }
             }
 
@@ -304,8 +331,15 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
     // ── Scene update — relocalization on tracking loss ────────────────────────
 
     private fun onSceneUpdate() {
+        meshToggle?.setAvailable(meshRenderer?.hasMesh() == true)
+
         val frame = arFragment.arSceneView.arFrame ?: return
         val currentState = frame.camera.trackingState
+
+        // A stale camera pose would re-centre the reveal somewhere the user no longer is.
+        meshRenderer?.onFrame(
+            if (currentState == TrackingState.TRACKING) arFragment.arSceneView.scene.camera.worldPosition else null
+        )
 
         // Auto-start localization only once ARCore reaches TRACKING (not on first configure).
         if (currentState == TrackingState.TRACKING && pendingAutoStart && !sessionStarted) {
@@ -324,8 +358,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 && sessionStarted
             ) {
                 // The pose gate must learn the tracker broke even when auto-relocalization is
-                // off, or it keeps validating against a reference the tracker no longer backs.
-                localizationSession?.notifyTrackingInterrupted()
+                // off, or it keeps validating against an anchor the tracker no longer backs.
+                localizationSession?.notifyArTrackingLost(currentState, frame.camera.trackingFailureReason)
 
                 if (LocalizationConfig.relocalization) {
                     Log.d(TAG, "AR tracking lost (→ $currentState) — triggering relocalization")
@@ -336,18 +370,40 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         }
     }
 
+    private fun trustLabel(trust: AnchorTrust): String = getString(
+        when (trust) {
+            AnchorTrust.PROVISIONAL -> R.string.anchor_trust_provisional
+            AnchorTrust.CORROBORATED -> R.string.anchor_trust_corroborated
+            AnchorTrust.TRUSTED -> R.string.anchor_trust_trusted
+        }
+    )
+
     /** Mirrors the iOS demo app's false-positive prompt. */
     private fun showFalsePositiveDialog(info: FalsePositiveInfo) {
-        val lines = mutableListOf(
-            getString(R.string.false_positive_body, info.jumpMeters, info.thresholdMeters)
-        )
+        val body = when (info.cause) {
+            FalsePositiveCause.ANCHOR_HELD_VOTE -> getString(
+                R.string.false_positive_body_held,
+                info.jumpMeters, info.yawDeltaDeg, info.thresholdMeters, info.thresholdDegrees,
+            )
+            FalsePositiveCause.INLIER_MARGIN -> getString(
+                R.string.false_positive_body_aliasing,
+                info.jumpMeters, info.yawDeltaDeg, info.thresholdMeters, info.thresholdDegrees,
+            )
+            FalsePositiveCause.INSUFFICIENT_VIEWPOINTS, null -> getString(
+                R.string.false_positive_body,
+                info.jumpMeters, info.yawDeltaDeg, info.thresholdMeters, info.thresholdDegrees,
+                info.challengerSupport, info.requiredSupport,
+            )
+        }
+        val lines = mutableListOf(body)
         if (info.consecutiveCount > 1) {
             lines += getString(R.string.false_positive_streak, info.consecutiveCount)
         }
-        lines += getString(R.string.false_positive_advice)
-        // Nothing overrules a reference the device still vouches for, so after a run of
-        // rejections the user needs to know how to start over — the reference may be the wrong one.
-        if (info.consecutiveCount >= 3) {
+        // Multi-frame from more angles cannot fix structural aliasing, so do not send the user
+        // walking; the reset is the only way out and the hint below says so.
+        val aliasing = info.rejection == GateRejection.SUSPECTED_ALIASING
+        lines += getString(if (aliasing) R.string.false_positive_aliasing_advice else R.string.false_positive_advice)
+        if (aliasing || info.consecutiveCount >= 3) {
             lines += getString(R.string.false_positive_reset_hint)
         }
 
@@ -363,14 +419,23 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
     /** AR chrome must clear the status bar / gesture handle while the camera stays full-bleed. */
     private fun applyChromeInsets() {
         binding.statusOverlay.marginForSystemBars(top = true)
-        binding.closeButton.marginForSystemBars(top = true)
+        binding.topActions.marginForSystemBars(top = true)
         binding.localizeButton.marginForSystemBars(bottom = true)
-        binding.resetButton.marginForSystemBars(bottom = true)
+        binding.meshToggle.marginForSystemBars(bottom = true) { watermarkClearance }
         binding.backgroundProgressIndicator.marginForSystemBars(bottom = true)
+
+        MultiSetWatermark.attach(this) { clearance ->
+            watermarkClearance = clearance
+            ViewCompat.requestApplyInsets(binding.meshToggle)
+        }
     }
 
     private fun setupUI() {
         setupPhoneAnimation()
+
+        meshToggle = MeshToggle(binding.meshToggle) { visible ->
+            meshRenderer?.setMeshVisible(visible)
+        }
 
         binding.localizeButton.setOnClickListener {
             localizationSession?.let {
@@ -382,9 +447,8 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
         binding.resetButton.setOnClickListener {
             failureAlert.reset()
-            localizationSession?.stop()
-            // Reset puts the scene back to square one, so the next fix is the new reference.
-            localizationSession?.resetPoseReference()
+            // Unlike resetPoseReference(), this re-arms the first-localization latch too.
+            localizationSession?.resetSession()
             phoneAnimator?.cancel()
             hideAllOverlays()
             meshLoadJob?.cancel()
@@ -488,7 +552,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         meshLoadJob?.cancel()
         meshLoadJob = null
         gizmoNode = null
-        meshRenderer?.removeMesh()
+        meshRenderer?.release()
         meshRenderer = null
     }
 }

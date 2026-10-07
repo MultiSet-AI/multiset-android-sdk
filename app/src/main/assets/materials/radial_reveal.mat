@@ -1,107 +1,62 @@
+// Editing this file changes nothing until it is recompiled into
+// app/src/main/res/raw/radial_reveal_material.filamat with matc from Filament 1.57.1 — the
+// release Sceneform pulls. Anything else produces a MAT_VERSION the runtime rejects:
+//   matc -a opengl -a vulkan -a metal -p mobile -o app/src/main/res/raw/radial_reveal_material.filamat \
+//        app/src/main/assets/materials/radial_reveal.mat
+//
+// Port of iOS RadialRevealShader.metal.
+// reveal = (centre xyz in world space, current radius in metres); radius 0 draws nothing.
 material {
     name : RadialReveal,
     shadingModel : unlit,
     blending : transparent,
-    doubleSided : true,
-    variables : [
-        variable0
-    ],
+    culling : back,
+    depthWrite : false,
     parameters : [
-        { type : float4, name : revealParam },
-        { type : float,  name : maxRadius }
+        { type : float4, name : reveal }
     ]
 }
 
-vertex {
-    void materialVertex(inout MaterialVertexInputs material) {
-        material.variable0 = getPosition();
-    }
-}
-
 fragment {
-    float getGridFactor(vec3 pos, vec3 faceNormal, float gridSize, float lineWidth) {
-        vec3 absN = abs(faceNormal);
-        vec2 gridCoord;
-
-        if (absN.y > absN.x && absN.y > absN.z) {
-            gridCoord = pos.xz / gridSize;
-        } else if (absN.x > absN.z) {
-            gridCoord = pos.yz / gridSize;
+    float gridFactor(vec3 pos, vec3 n, float gridSize, float lineWidth) {
+        vec3 a = abs(n);
+        vec2 g;
+        if (a.y > a.x && a.y > a.z) {
+            g = pos.xz / gridSize;
+        } else if (a.x > a.z) {
+            g = pos.yz / gridSize;
         } else {
-            gridCoord = pos.xy / gridSize;
+            g = pos.xy / gridSize;
         }
-
-        vec2 gridFract = fract(abs(gridCoord));
-        vec2 distToLine = min(gridFract, 1.0 - gridFract);
-        float minDist = min(distToLine.x, distToLine.y);
-
-        // Screen-space adaptive width
-        vec2 fw = fwidth(gridCoord);
-        float screenWidth = max(fw.x, fw.y) * 1.5;
-        float adaptedWidth = max(lineWidth, screenWidth);
-
-        float factor = 1.0 - smoothstep(0.0, adaptedWidth, minDist);
-
-        // Suppress grid on complex/dense/angled geometry
-        float maxFw = max(fw.x, fw.y);
-        float geometryValid = 1.0 - smoothstep(0.05, 0.12, maxFw);
-        factor *= geometryValid;
-
-        return factor;
+        vec2 f = fract(abs(g));
+        vec2 d = min(f, 1.0 - f);
+        return 1.0 - smoothstep(0.0, lineWidth, min(d.x, d.y));
     }
 
     void material(inout MaterialInputs material) {
         prepareMaterial(material);
-
-        vec3 center    = materialParams.revealParam.xyz;
-        float progress = materialParams.revealParam.w;
-        float radius   = materialParams.maxRadius;
-
-        vec3 modelPos = variable_variable0.xyz;
-
-        // ── Normalized distance in model space ──
-        float dist = distance(modelPos, center);
-        float normalizedDist = dist / max(radius, 0.001);
-
-        // ── Radial clip ──
-        if (normalizedDist > progress + 0.001) {
+        vec3 centre = materialParams.reveal.xyz;
+        float radius = materialParams.reveal.w;
+        // getWorldPosition() is camera-relative in Filament; the reveal centre is not.
+        vec3 pos = getUserWorldPosition();
+        float dist = distance(pos, centre);
+        if (dist > radius) {
             material.baseColor = vec4(0.0);
             return;
         }
-
-        float distFromEdge = progress - normalizedDist;
-
-        // ── Base mesh color: dark shade of #7B2CBF ──
-        vec3 baseColor = vec3(0.18, 0.06, 0.28);
-        float baseAlpha = 0.30;
-
-        // ── Model-space face normal ──
-        vec3 dpdx = dFdx(modelPos);
-        vec3 dpdy = dFdy(modelPos);
-        vec3 faceNormal = normalize(cross(dpdx, dpdy));
-
-        // ── Grid: thin lines, suppressed on complex geometry ──
-        vec3 gridColor = vec3(1.0, 1.0, 0.0);
-        float gridFactor = getGridFactor(modelPos, faceNormal, 1.0, 0.015);
-
-        // Compose base + grid
-        vec3 finalColor = mix(baseColor, gridColor, gridFactor);
-        float finalAlpha = max(baseAlpha, gridFactor);
-
-        // ── Edge glow: narrow, deep red ──
-        vec3 glowColor = vec3(0.9, 0.08, 0.0);  // deep red
-        float glowWidth = 0.03;
-        float glowIntensity = 3.5;
-
-        float glowFactor = clamp(1.0 - clamp(distFromEdge / max(glowWidth, 0.001), 0.0, 1.0), 0.0, 1.0);
-        glowFactor = glowFactor * glowFactor;  // Squared for sharp falloff
-
-        vec3 glowContribution = glowColor * glowFactor * glowIntensity;
-        finalColor += glowContribution;
-        finalAlpha = max(finalAlpha, glowFactor);
-
-        finalAlpha = max(finalAlpha, 0.15);
-
-        material.baseColor = vec4(finalColor, finalAlpha);
+        vec3 baseColor = vec3(0.357, 0.114, 0.6);
+        float baseAlpha = 0.39;
+        vec3 glowColor = vec3(1.0, 0.227, 0.0);
+        float glowWidth = max(radius * 0.10, 0.1);
+        float glow = clamp(1.0 - clamp((radius - dist) / glowWidth, 0.0, 1.0), 0.0, 1.0);
+        glow *= glow;
+        vec3 n = normalize(cross(dFdx(pos), dFdy(pos)));
+        float grid = gridFactor(pos, n, 1.0, 0.02);
+        vec3 color = mix(baseColor, vec3(1.0, 1.0, 0.0), grid);
+        float alpha = max(baseAlpha, grid * 0.8);
+        color += glowColor * glow * 2.0;
+        alpha = max(alpha, glow);
+        // Transparent blending expects premultiplied alpha.
+        material.baseColor = vec4(color * alpha, alpha);
     }
 }

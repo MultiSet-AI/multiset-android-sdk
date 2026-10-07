@@ -96,11 +96,20 @@ class SettingsDialogFragment : DialogFragment() {
         environmentContainer.removeAllViews()
 
         with(LocalizationConfig) {
-            switchRow(mapContainer, "Auto Localize", autoLocalize) { autoLocalize = it }
-            switchRow(mapContainer, "Background Localization", backgroundLocalization) { backgroundLocalization = it }
-            sliderRow(mapContainer, "Background Interval", 15f, 180f, 1f, backgroundLocalizationIntervalSeconds, { "${it.toInt()} s" }) {
-                backgroundLocalizationIntervalSeconds = it
+            if (!isMultiFrame) {
+                dropdownRow(
+                    mapContainer, "Query Mode (single-frame)", QUERY_MODE_LABELS,
+                    queryMode, QUERY_MODE_DESCRIPTIONS
+                ) { queryMode = it }
             }
+            switchRow(mapContainer, "Auto Localize", autoLocalize) { autoLocalize = it }
+            gatedSliderRow(
+                mapContainer,
+                switchLabel = "Background Localization", switchInitial = backgroundLocalization,
+                switchSetter = { backgroundLocalization = it },
+                sliderLabel = "Background Interval", from = 15f, to = 180f, step = 1f,
+                sliderInitial = backgroundLocalizationIntervalSeconds, format = { "${it.toInt()} s" },
+            ) { backgroundLocalizationIntervalSeconds = it }
             switchRow(mapContainer, "Relocalization (on tracking loss)", relocalization) { relocalization = it }
             switchRow(mapContainer, "First Localization Until Success", firstLocalizationUntilSuccess) { firstLocalizationUntilSuccess = it }
             if (isMultiFrame) {
@@ -108,26 +117,29 @@ class SettingsDialogFragment : DialogFragment() {
                     numberOfFrames = it.toInt()
                 }
             }
-            if (!isMultiFrame) {
-                dropdownRow(
-                    mapContainer, "Query Mode (single-frame)", QUERY_MODE_LABELS,
-                    queryMode, QUERY_MODE_DESCRIPTIONS
-                ) { queryMode = it }
+            gatedSliderRow(
+                mapContainer,
+                switchLabel = "Confidence Check", switchInitial = confidenceCheck,
+                switchSetter = { confidenceCheck = it },
+                sliderLabel = "Confidence Threshold", from = 0.2f, to = 0.8f, step = 0.05f,
+                sliderInitial = confidenceThreshold, format = { "%.2f".format(it) },
+            ) { confidenceThreshold = it }
+            gatedSection(
+                mapContainer,
+                switchLabel = "Pose Consistency Check", switchInitial = poseConsistencyCheck,
+                switchSetter = { poseConsistencyCheck = it },
+            ) { p ->
+                listOf(
+                    sliderRow(
+                        p, "Distance Limit", 1.5f, 15f, 0.5f,
+                        poseConsistencyThreshold, { "%.1f m".format(it) },
+                    ) { poseConsistencyThreshold = it },
+                    sliderRow(
+                        p, "Heading Limit", 10f, 60f, 5f,
+                        poseConsistencyYawThreshold, { "${it.toInt()}°" },
+                    ) { poseConsistencyYawThreshold = it },
+                )
             }
-            switchRow(mapContainer, "Confidence Check", confidenceCheck) { confidenceCheck = it }
-            sliderRow(mapContainer, "Confidence Threshold", 0.2f, 0.8f, 0.05f, confidenceThreshold, { "%.2f".format(it) }) {
-                confidenceThreshold = it
-            }
-            lateinit var poseThresholdRow: View
-            switchRow(
-                mapContainer, "Pose Consistency Check", poseConsistencyCheck,
-                onChange = { on -> poseThresholdRow.visibility = if (on) View.VISIBLE else View.GONE },
-            ) { poseConsistencyCheck = it }
-            poseThresholdRow = sliderRow(
-                mapContainer, "Pose Consistency Threshold", 3f, 30f, 1f,
-                poseConsistencyThreshold, { "${it.toInt()} m" },
-            ) { poseConsistencyThreshold = it }
-            poseThresholdRow.visibility = if (poseConsistencyCheck) View.VISIBLE else View.GONE
             switchRow(mapContainer, "Enable Geo Hint (GPS)", enableGeoHint) { enableGeoHint = it }
             switchRow(mapContainer, "Include Geo Coordinates In Response", includeGeoCoordinatesInResponse) { includeGeoCoordinatesInResponse = it }
             sliderRow(mapContainer, "Hint Radius", 1f, 100f, 1f, hintRadius.toFloat(), { "${it.toInt()} m" }) {
@@ -145,10 +157,13 @@ class SettingsDialogFragment : DialogFragment() {
 
         with(ObjectTrackingConfig) {
             switchRow(objectContainer, "Auto Tracking", autoTracking) { autoTracking = it }
-            switchRow(objectContainer, "Background Tracking", backgroundTracking) { backgroundTracking = it }
-            sliderRow(objectContainer, "Background Duration", 5f, 30f, 1f, bgTrackingDurationSeconds, { "${it.toInt()} s" }) {
-                bgTrackingDurationSeconds = it
-            }
+            gatedSliderRow(
+                objectContainer,
+                switchLabel = "Background Tracking", switchInitial = backgroundTracking,
+                switchSetter = { backgroundTracking = it },
+                sliderLabel = "Background Duration", from = 5f, to = 30f, step = 1f,
+                sliderInitial = bgTrackingDurationSeconds, format = { "${it.toInt()} s" },
+            ) { bgTrackingDurationSeconds = it }
             switchRow(objectContainer, "Restart Tracking (on tracking loss)", restartTracking) { restartTracking = it }
             switchRow(objectContainer, "First Tracking Until Success", firstTrackingUntilSuccess) { firstTrackingUntilSuccess = it }
         }
@@ -217,6 +232,38 @@ class SettingsDialogFragment : DialogFragment() {
         row.addView(switch)
         parent.addView(row)
         savers.add { setter(switch.isChecked) }
+    }
+
+    /**
+     * A switch and the rows it reveals. The rows are hidden while the switch is off, and still
+     * save their values when hidden so turning the switch back on restores them.
+     */
+    private fun gatedSection(
+        parent: LinearLayout,
+        switchLabel: String, switchInitial: Boolean, switchSetter: (Boolean) -> Unit,
+        rows: (LinearLayout) -> List<View>,
+    ) {
+        lateinit var gated: List<View>
+        switchRow(
+            parent, switchLabel, switchInitial,
+            onChange = { on ->
+                val visibility = if (on) View.VISIBLE else View.GONE
+                gated.forEach { it.visibility = visibility }
+            },
+            setter = switchSetter,
+        )
+        gated = rows(parent)
+        val visibility = if (switchInitial) View.VISIBLE else View.GONE
+        gated.forEach { it.visibility = visibility }
+    }
+
+    private fun gatedSliderRow(
+        parent: LinearLayout,
+        switchLabel: String, switchInitial: Boolean, switchSetter: (Boolean) -> Unit,
+        sliderLabel: String, from: Float, to: Float, step: Float,
+        sliderInitial: Float, format: (Float) -> String, sliderSetter: (Float) -> Unit,
+    ) = gatedSection(parent, switchLabel, switchInitial, switchSetter) { p ->
+        listOf(sliderRow(p, sliderLabel, from, to, step, sliderInitial, format, sliderSetter))
     }
 
     private fun sliderRow(

@@ -51,6 +51,7 @@ object ConfigStore {
     private const val L_QUERY_MODE = "loc_queryMode"
     private const val L_POSE_CHECK = "loc_poseConsistencyCheck"
     private const val L_POSE_THRESHOLD = "loc_poseConsistencyThreshold"
+    private const val L_POSE_YAW_THRESHOLD = "loc_poseConsistencyYawThreshold"
 
     // --- Object tracking keys ---
     private const val O_AUTO = "obj_autoTracking"
@@ -99,6 +100,7 @@ object ConfigStore {
             queryMode = decodeQueryMode(p.getString(L_QUERY_MODE, null), queryMode)
             poseConsistencyCheck = p.getBoolean(L_POSE_CHECK, poseConsistencyCheck)
             poseConsistencyThreshold = p.getFloat(L_POSE_THRESHOLD, poseConsistencyThreshold)
+            poseConsistencyYawThreshold = p.getFloat(L_POSE_YAW_THRESHOLD, poseConsistencyYawThreshold)
             validate()
         }
 
@@ -143,6 +145,7 @@ object ConfigStore {
                 putString(L_QUERY_MODE, queryMode.name)
                 putBoolean(L_POSE_CHECK, poseConsistencyCheck)
                 putFloat(L_POSE_THRESHOLD, poseConsistencyThreshold)
+                putFloat(L_POSE_YAW_THRESHOLD, poseConsistencyYawThreshold)
             }
             with(ObjectTrackingConfig) {
                 putBoolean(O_AUTO, autoTracking)

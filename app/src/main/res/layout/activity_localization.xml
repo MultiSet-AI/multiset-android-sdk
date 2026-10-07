@@ -181,7 +181,7 @@ Redistribution in source or binary forms must retain this notice.
         android:paddingHorizontal="14dp"
         android:paddingVertical="10dp"
         android:visibility="gone"
-        app:layout_constraintEnd_toStartOf="@id/closeButton"
+        app:layout_constraintEnd_toStartOf="@id/topActions"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintWidth_default="wrap">
@@ -203,25 +203,19 @@ Redistribution in source or binary forms must retain this notice.
 
     </LinearLayout>
 
-    <!-- Reset Button (bottom left) - Hidden by default -->
+    <!-- Mesh visibility (bottom left) — offered only once a mesh is actually in the scene -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/resetButton"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:id="@+id/meshToggle"
+        style="@style/Widget.MultiSetSDK.Button.MeshToggle"
         android:layout_width="wrap_content"
-        android:layout_height="46dp"
-        android:layout_marginStart="18dp"
-        android:layout_marginBottom="42dp"
-        android:background="@drawable/bg_ar_chip"
-        android:paddingHorizontal="20dp"
-        android:text="@string/reset"
-        android:textAllCaps="false"
-        android:textColor="@color/ar_on"
-        android:textSize="14sp"
-        android:textStyle="bold"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="24dp"
+        android:text="@string/mesh"
         android:visibility="gone"
+        app:icon="@drawable/ic_cube"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:rippleColor="#33FFFFFF" />
+        app:layout_constraintStart_toStartOf="parent" />
 
     <!-- Localize Button (bottom right) - Always visible -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -236,18 +230,39 @@ Redistribution in source or binary forms must retain this notice.
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Close Button -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/closeButton"
+    <!-- Top-right actions: Reset appears once there is something to reset, then Close.
+         Both live in one row so the status chip can end against it while Reset is gone. -->
+    <LinearLayout
+        android:id="@+id/topActions"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        style="@style/Widget.MultiSetSDK.Fab.ArNeutral"
         android:layout_margin="14dp"
-        android:contentDescription="@string/close"
-        android:src="@drawable/ic_close"
-        app:fabSize="mini"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/resetButton"
+            style="@style/Widget.MultiSetSDK.Fab.Reset"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="@string/reset_scene"
+            android:src="@drawable/ic_refresh"
+            android:visibility="gone"
+            app:fabSize="mini" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/closeButton"
+            style="@style/Widget.MultiSetSDK.Fab.ArNeutral"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/close"
+            android:src="@drawable/ic_close"
+            app:fabSize="mini" />
+
+    </LinearLayout>
 
     <!-- GPS Status Indicator -->
     <LinearLayout

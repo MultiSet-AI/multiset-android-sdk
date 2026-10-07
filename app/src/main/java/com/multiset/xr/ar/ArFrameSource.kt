@@ -86,6 +86,8 @@ class ArFrameSource(
                 imageHeight = imgHeight,
             ),
             orientation = orientation,
+            // ARCore's frame clock is monotonic; wall-clock time can jump and would skew the gate.
+            timestampSeconds = frame.timestamp / 1_000_000_000.0,
         )
     }
 }

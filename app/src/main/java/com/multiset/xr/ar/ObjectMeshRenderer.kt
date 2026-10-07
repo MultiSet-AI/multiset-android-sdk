@@ -7,34 +7,33 @@ Redistribution in source or binary forms must retain this notice.
 package com.multiset.xr.ar
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
-import android.view.Choreographer
 import com.google.ar.sceneform.Node
-import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
-import com.google.ar.sceneform.rendering.Color
 import com.google.ar.sceneform.rendering.Material
 import com.google.ar.sceneform.rendering.ModelRenderable
-import com.google.ar.sceneform.rendering.RenderableInstance
-import com.multiset.xr.R
+import com.google.ar.sceneform.rendering.RenderableDefinition
+import com.google.ar.sceneform.rendering.Vertex
 import com.multiset.sdk.mesh.MeshRepository
+import com.multiset.xr.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
+import java.util.concurrent.CompletableFuture
 
 /**
- * Fetches GLB mesh data via [MeshRepository] and renders it onto a Sceneform [Node].
+ * Fetches an object's GLB via [MeshRepository] and draws its outline: a copy of the mesh pushed out
+ * along its normals and drawn inside out (`outline_only.mat`), behind a depth-only copy
+ * (`occluder.mat`) that hides the shell's interior, so only a glowing rim shows at the edges.
  *
- * Rendering simplifications vs ObjectMeshHandler reference:
- * - Outline animation (Choreographer-driven animTime update) is retained.
- * - radial_reveal material / reveal animation is omitted (not referenced in public API surface).
- * - No persistent disk cache beyond context.cacheDir (temp files; OS may evict between sessions).
- * - [MeshRepository] owns the bearer token: it fetches a current one per request and refreshes it.
+ * Port of the iOS SDK's `OutlineMeshRenderer.swift`. The host calls [onFrame] once per AR frame
+ * to animate the outline. [MeshRepository] owns the bearer token.
  */
 class ObjectMeshRenderer(
     private val context: Context,
@@ -43,8 +42,11 @@ class ObjectMeshRenderer(
 ) {
     companion object {
         private const val TAG = "ObjectMeshRenderer"
-        // Purple matching iOS/Unity OutlineMat: #511A80, alpha ~150/255
-        private val OUTLINE_COLOR = Color(0.3195f, 0.1014f, 0.5f, 0.5882f)
+
+        /** iOS `OutlineShader.metal` kOutlineColor / kOutlineAlpha; width 6 mm (`OutlineMeshRenderer.swift`). */
+        private val OUTLINE_COLOR = floatArrayOf(0.31950867f, 0.1014151f, 0.5f)
+        private const val OUTLINE_ALPHA = 0.5882353f
+        private const val OUTLINE_WIDTH = 0.006f
     }
 
     private val rendererJob = SupervisorJob(scope.coroutineContext[Job])
@@ -54,210 +56,195 @@ class ObjectMeshRenderer(
     private val parentNodes = mutableMapOf<String, Node>()
     private val fetchedObjectCodes = mutableSetOf<String>()
 
-    private var outlineMaterial: Material? = null
-    private var outlineAnimator: OutlineAnimator? = null
-    private var materialLoaded = false
+    private var meshVisible = true
+    private var outlineMaterial: CompletableFuture<Material>? = null
+    private var occluderMaterial: CompletableFuture<Material>? = null
+    private var animatedOutline: Material? = null
+    private var outlineClockStart = 0L
 
-    // ---------------------------------------------------------------------------
-    // Public API
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Loads the outline material from raw resources. Call once before [fetchAndRender].
-     * Safe to call multiple times — subsequent calls are no-ops.
-     */
-    fun loadOutlineMaterial() {
-        if (materialLoaded) return
-        materialLoaded = true
-
-        try {
-            Material.builder()
-                .setSource(context, R.raw.outline_only_material)
-                .build()
-                .thenAccept { material ->
-                    try {
-                        material.setFloat4("outlineColor", OUTLINE_COLOR)
-                        material.setFloat("outlineWidth", 0.006f)
-                        material.setFloat("glowIntensity", 3.0f)
-                        material.setFloat("animTime", 0f)
-                        material.setFloat("sparkFrequency", 8.0f)
-                        material.setFloat("sparkIntensity", 3.0f)
-                        material.setFloat("rimPower", 5.0f)
-                        material.setFloat("edgeCutoff", 0.25f)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Could not set outline params: ${e.message}")
-                    }
-                    outlineMaterial = material
-                    Log.d(TAG, "Outline material loaded")
-                    startOutlineAnimation()
+    /** Starts loading the outline and occluder materials. Call once before [fetchAndRender]; repeats are no-ops. */
+    fun loadMaterials() {
+        if (outlineMaterial != null) return
+        outlineMaterial = Material.builder()
+            .setSource(context, R.raw.outline_only_material)
+            .build()
+            .thenApply { material ->
+                material.apply {
+                    setFloat4("outlineColor", OUTLINE_COLOR[0], OUTLINE_COLOR[1], OUTLINE_COLOR[2], OUTLINE_ALPHA)
+                    setFloat("outlineWidth", OUTLINE_WIDTH)
+                    setFloat("animTime", 0f)
                 }
-                .exceptionally { throwable ->
-                    Log.e(TAG, "Failed to load outline material: ${throwable.message}")
-                    null
-                }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error building outline material: ${e.message}")
-        }
+            }
+        occluderMaterial = Material.builder()
+            .setSource(context, R.raw.occluder_material)
+            .build()
     }
 
     /**
-     * Fetches mesh metadata + GLB bytes via [MeshRepository], writes to a temp file in
-     * [Context.getCacheDir], then loads the GLB via [ModelRenderable] and attaches the
-     * rendered node to [parentNode].
-     *
-     * Idempotent per [objectCode] — subsequent calls for the same code are ignored.
+     * Downloads the object's GLB, builds its outline off the main thread, and attaches it under
+     * [parentNode]. Idempotent per [objectCode] — later calls for the same code are ignored.
      */
     fun fetchAndRender(objectCode: String, parentNode: Node) {
-        if (fetchedObjectCodes.contains(objectCode)) return
-        fetchedObjectCodes.add(objectCode)
+        if (!fetchedObjectCodes.add(objectCode)) return
         parentNodes[objectCode] = parentNode
 
-        rendererScope.launch(Dispatchers.IO) {
+        rendererScope.launch {
             try {
-                // Step 1: fetch metadata to get the file URL
-                val metadata = meshRepository.fetchObjectMeshMetadata(objectCode)
-                val fileUrl = metadata.fileUrl
-                if (fileUrl.isNullOrBlank()) {
+                val glb = withContext(Dispatchers.IO) {
+                    val fileUrl = meshRepository.fetchObjectMeshMetadata(objectCode).fileUrl
+                    if (fileUrl.isNullOrBlank()) null else meshRepository.downloadMesh(fileUrl)
+                }
+                if (glb == null) {
                     Log.e(TAG, "No mesh URL for object $objectCode")
                     return@launch
                 }
-
-                // Step 2: download GLB bytes
-                val glbBytes = meshRepository.downloadMesh(fileUrl)
-
-                // Step 3: write to persistent file in filesDir/object_mesh_cache
-                val objectCacheDir = File(context.filesDir, "object_mesh_cache").apply { mkdirs() }
-                val cacheFile = File(objectCacheDir, "mesh_${objectCode}.glb")
-                cacheFile.outputStream().use { it.write(glbBytes) }
-                Log.d(TAG, "GLB cached at ${cacheFile.absolutePath}")
-
-                // Step 4: load in Sceneform on Main thread
-                withContext(Dispatchers.Main) {
-                    loadMeshInScene(cacheFile, objectCode)
+                val scene = withContext(Dispatchers.Default) { GlbParser.parse(glb) }
+                val outline = outlineMaterial.awaitMaterial("outline")
+                val occluder = occluderMaterial.awaitMaterial("occluder")
+                if (outline == null && occluder == null) return@launch
+                val prepared = withContext(Dispatchers.Default) {
+                    scene.roots.map { prepareOutline(it, occluder, outline) }
                 }
+                showMesh(objectCode, prepared, outline)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch/render mesh for $objectCode: ${e.message}", e)
             }
         }
     }
 
+    /** Advances the outline's glow animation. */
+    fun onFrame() {
+        val outline = animatedOutline ?: return
+        if (meshNodes.isEmpty()) return
+        outline.setFloat("animTime", (System.nanoTime() - outlineClockStart) / 1e9f)
+    }
+
     /**
-     * Cancels all pending coroutines, stops the outline animator, and detaches / clears
-     * all mesh nodes. Call when the AR session ends.
+     * Detaches every mesh, drops fetches still in flight, and forgets which codes were fetched, so
+     * the next fix loads them again. Unlike [release] the renderer stays usable afterwards.
      */
-    fun release() {
-        rendererJob.cancel()
-        outlineAnimator?.stop()
-        outlineAnimator = null
-        meshNodes.values.forEach { node ->
-            node.setParent(null)
-            node.renderable = null
-        }
+    fun clearMeshes() {
+        rendererJob.cancelChildren()
+        meshNodes.values.forEach { it.setParent(null) }
         meshNodes.clear()
         parentNodes.clear()
         fetchedObjectCodes.clear()
     }
 
-    // ---------------------------------------------------------------------------
-    // Internal helpers
-    // ---------------------------------------------------------------------------
+    /** Whether any object mesh is currently in the scene. */
+    fun hasMesh(): Boolean = meshNodes.isNotEmpty()
 
-    private fun loadMeshInScene(file: File, objectCode: String) {
-        if (meshNodes.containsKey(objectCode)) {
-            Log.w(TAG, "Mesh for $objectCode already loaded")
-            return
-        }
-
-        ModelRenderable.builder()
-            .setSource(context, Uri.fromFile(file))
-            .setIsFilamentGltf(true)
-            .setRegistryId(objectCode)
-            .build()
-            .thenAccept { renderable ->
-                val meshNode = Node().apply { name = objectCode }
-
-                parentNodes[objectCode]?.let { meshNode.setParent(it) }
-
-                val renderableInstance = meshNode.setRenderable(renderable)
-
-                meshNode.localPosition = Vector3.zero()
-                meshNode.localRotation = Quaternion.identity()
-                meshNode.localScale = Vector3.one()
-
-                applyOutlineMaterial(renderableInstance)
-
-                meshNodes[objectCode] = meshNode
-                Log.d(TAG, "Mesh loaded and rendered for object: $objectCode")
-            }
-            .exceptionally { throwable ->
-                Log.e(TAG, "Failed to load GLB: ${throwable.message}")
-                null
-            }
+    /**
+     * Shows or hides every object mesh. The choice is remembered, so a mesh that arrives
+     * after the host hid them stays hidden rather than popping back in.
+     */
+    fun setMeshVisible(visible: Boolean) {
+        meshVisible = visible
+        meshNodes.values.forEach { it.isEnabled = visible }
     }
 
-    private fun applyOutlineMaterial(renderableInstance: RenderableInstance) {
-        val mat = outlineMaterial ?: return
-        try {
-            val count = renderableInstance.materialsCount
-            if (count > 0) {
-                for (i in 0 until count) {
-                    try {
-                        renderableInstance.setMaterial(i, mat)
-                    } catch (e: IndexOutOfBoundsException) {
-                        break
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Could not set material at index $i: ${e.message}")
-                    }
-                }
-            } else {
-                renderableInstance.setMaterial(mat)
-            }
+    /** Cancels pending work and detaches all mesh nodes. Call when the AR session ends. */
+    fun release() {
+        rendererJob.cancel()
+        meshNodes.values.forEach { it.setParent(null) }
+        meshNodes.clear()
+        parentNodes.clear()
+        fetchedObjectCodes.clear()
+        animatedOutline = null
+    }
+
+    private suspend fun CompletableFuture<Material>?.awaitMaterial(name: String): Material? {
+        val future = this ?: return null
+        return try {
+            // await() cancels the future it waits on; a dependent stage keeps the shared one intact.
+            future.thenApply { it }.await()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error applying outline material: ${e.message}", e)
+            Log.e(TAG, "Failed to load $name material: ${e.message}", e)
+            null
         }
     }
 
-    private fun startOutlineAnimation() {
-        if (outlineAnimator != null) return
-        outlineAnimator = OutlineAnimator(outlineMaterial).also { it.start() }
+    /** CPU-side outline geometry for one glTF node; [definition] is null for a node without a mesh. */
+    private class PreparedNode(
+        val transform: GlbTransform,
+        val definition: RenderableDefinition?,
+        val children: List<PreparedNode>,
+    )
+
+    private fun prepareOutline(node: GlbNode, occluder: Material?, outline: Material?): PreparedNode {
+        val vertices = ArrayList<Vertex>()
+        val indices = ArrayList<Int>()
+        for (primitive in node.primitives) {
+            if (primitive.vertexCount == 0 || primitive.indices.isEmpty()) continue
+            val normals = primitive.normals ?: OutlineNormals.smoothNormals(primitive.positions, primitive.indices)
+            val positions = primitive.positions
+            val base = vertices.size
+            for (v in 0 until primitive.vertexCount) {
+                vertices += Vertex.builder()
+                    .setPosition(Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]))
+                    .setNormal(Vector3(normals[v * 3], normals[v * 3 + 1], normals[v * 3 + 2]))
+                    .build()
+            }
+            appendTriangles(primitive.indices, primitive.vertexCount, base, indices)
+        }
+        val submeshes = listOfNotNull(occluder, outline).map { material ->
+            RenderableDefinition.Submesh.builder().setTriangleIndices(indices).setMaterial(material).build()
+        }
+        val definition = if (indices.isEmpty()) null else {
+            RenderableDefinition.builder().setVertices(vertices).setSubmeshes(submeshes).build()
+        }
+        return PreparedNode(node.transform, definition, node.children.map { prepareOutline(it, occluder, outline) })
     }
 
-    // ---------------------------------------------------------------------------
-    // Outline animation (Choreographer-driven animTime)
-    // ---------------------------------------------------------------------------
+    /** Copies whole triangles only; an out-of-range index would read past the vertex buffer on the GPU. */
+    private fun appendTriangles(source: IntArray, vertexCount: Int, base: Int, out: MutableList<Int>) {
+        var i = 0
+        while (i + 2 < source.size) {
+            val a = source[i]
+            val b = source[i + 1]
+            val c = source[i + 2]
+            i += 3
+            if (a in 0 until vertexCount && b in 0 until vertexCount && c in 0 until vertexCount) {
+                out += base + a
+                out += base + b
+                out += base + c
+            }
+        }
+    }
 
-    private class OutlineAnimator(private val material: Material?) {
-        private var isAnimating = false
-        private var startTimeNanos = 0L
+    private fun showMesh(objectCode: String, prepared: List<PreparedNode>, outline: Material?) {
+        val parent = parentNodes[objectCode] ?: return
+        if (meshNodes.containsKey(objectCode)) return
+        val root = Node().apply { name = objectCode }
+        root.setParent(parent)
+        prepared.forEach { buildNode(it).setParent(root) }
+        root.isEnabled = meshVisible
+        meshNodes[objectCode] = root
+        animatedOutline = outline
+        if (outlineClockStart == 0L) outlineClockStart = System.nanoTime()
+        Log.d(TAG, "Outline rendered for object: $objectCode")
+    }
 
-        private val frameCallback = object : Choreographer.FrameCallback {
-            override fun doFrame(frameTimeNanos: Long) {
-                if (isAnimating) {
-                    updateAnimation()
-                    Choreographer.getInstance().postFrameCallback(this)
+    private fun buildNode(prepared: PreparedNode): Node {
+        val node = Node()
+        node.localPosition = prepared.transform.translation.toSceneform()
+        node.localRotation = prepared.transform.rotation.toSceneform()
+        node.localScale = prepared.transform.scale.toSceneform()
+        prepared.definition?.let { definition ->
+            ModelRenderable.builder()
+                .setSource(definition)
+                .build()
+                .thenAccept { node.renderable = it }
+                .exceptionally { throwable ->
+                    Log.e(TAG, "Failed to build outline renderable: ${throwable.message}", throwable)
+                    null
                 }
-            }
         }
-
-        fun start() {
-            startTimeNanos = System.nanoTime()
-            isAnimating = true
-            Choreographer.getInstance().postFrameCallback(frameCallback)
-        }
-
-        fun stop() {
-            isAnimating = false
-            Choreographer.getInstance().removeFrameCallback(frameCallback)
-        }
-
-        private fun updateAnimation() {
-            val mat = material ?: return
-            val elapsed = (System.nanoTime() - startTimeNanos) / 1_000_000_000f
-            try {
-                mat.setFloat("animTime", elapsed)
-            } catch (e: Exception) {
-                // Material may not be ready yet — ignore
-            }
-        }
+        prepared.children.forEach { buildNode(it).setParent(node) }
+        return node
     }
 }

@@ -8,7 +8,12 @@
     <string name="tracking_objects">Tracking objects…</string>
     <string name="start_tracking">Start tracking</string>
     <string name="ready_to_localize">Ready to localize</string>
-    <string name="reset">Reset</string>
+    <string name="reset_scene">Reset the pose reference</string>
+    <string name="reset_tracking">Clear the outline and track again</string>
+    <string name="mesh">Mesh</string>
+    <string name="mesh_shown">Mesh shown</string>
+    <string name="mesh_hidden">Mesh hidden</string>
+    <string name="mesh_toggle_hint">Shows or hides the mesh drawn in the scene</string>
     <string name="localize">Localize</string>
     <string name="multiset_vps_demo">MultiSet VPS Demo</string>
     <string name="multiset_vps_samples">MultiSet VPS Samples</string>
@@ -81,10 +86,18 @@
     <string name="close_cancel">Stay</string>
     <!-- Pose consistency (false-positive) check -->
     <string name="false_positive_title">Pose rejected</string>
-    <string name="false_positive_body">The server matched your camera image to a different part of the space.\n\nIts pose sits %1$.1f m from where your device\'s own motion says the map should be (limit %2$.0f m), so the response was discarded and the map was left where it is.</string>
+    <string name="false_positive_body">The server matched your camera image to a different part of the space.\n\nIts pose sits %1$.1f m and %2$.0f° from where your device\'s own motion says the map should be (limits %3$.1f m and %4$.0f°), backed by %5$d of the %6$d viewpoints needed to move the map, so the response was discarded and the map was left where it is.</string>
+    <string name="false_positive_body_held">The server matched your camera image to a different part of the space.\n\nIts pose sits %1$.1f m and %2$.0f° from where your device\'s own motion says the map should be (limits %3$.1f m and %4$.0f°). It gathered as much support as the pose already in use, and equal support is no new evidence, so the response was discarded and the map was left where it is.</string>
+    <string name="false_positive_body_aliasing">The server matched your camera image to a different part of the space.\n\nIts pose sits %1$.1f m and %2$.0f° from where your device\'s own motion says the map should be (limits %3$.1f m and %4$.0f°). Enough separate viewpoints agreed with it, but they were not distinctive enough to overrule the pose already in use, so the response was discarded and the map was left where it is.</string>
     <string name="false_positive_streak">Discarded %1$d responses in a row.</string>
     <string name="false_positive_advice">Move a few steps, point at a well-lit, distinctive area and localize again.</string>
-    <string name="false_positive_reset_hint">If the map itself looks misplaced, tap Reset — the next response will be trusted as the new reference.</string>
+    <string name="false_positive_aliasing_advice">This spot looks like another part of the map, so localizing again from here will not help.</string>
+    <string name="false_positive_reset_hint">If the map itself looks misplaced, tap Reset — the next response will be trusted as the new anchor.</string>
+    <string name="localization_corrected">Map corrected by %1$.1f m</string>
+    <string name="anchor_trust_provisional">provisional</string>
+    <string name="anchor_trust_corroborated">corroborated</string>
+    <string name="anchor_trust_trusted">trusted</string>
+    <string name="anchor_trust_status">Anchor %1$s</string>
     <string name="false_positive_status">Pose rejected — localize again</string>
     <string name="false_positive_dismiss">OK</string>
     <!-- API environment (read-only) -->

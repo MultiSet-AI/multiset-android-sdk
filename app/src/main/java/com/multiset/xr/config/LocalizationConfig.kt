@@ -6,6 +6,7 @@ Redistribution in source or binary forms must retain this notice.
 */
 package com.multiset.xr.config
 
+import com.multiset.sdk.MultiSetSDKConfig
 import com.multiset.sdk.model.QueryMode
 
 /**
@@ -161,15 +162,15 @@ object LocalizationConfig {
 
     /**
      * Discard localization responses that contradict the device's own AR trajectory.
-     * Defaults on here even though the SDK default is off, so testers get the check.
+     * Tracks the SDK default so the demo exercises the path integrators actually get.
      */
-    var poseConsistencyCheck: Boolean = true
+    var poseConsistencyCheck: Boolean = MultiSetSDKConfig.DEFAULT_POSE_CONSISTENCY_CHECK
 
-    /**
-     * How far a new fix may sit from the last accepted one before it is discarded, in metres.
-     * Valid range: 3 - 30.
-     */
-    var poseConsistencyThreshold: Float = 10f
+    /** Flat distance limit a new fix may sit from the anchor, in metres. Valid range: 1.5 - 15. */
+    var poseConsistencyThreshold: Float = 4f
+
+    /** Flat heading limit a new fix may sit from the anchor, in degrees. Valid range: 10 - 60. */
+    var poseConsistencyYawThreshold: Float = 25f
 
     // ============================================================
     // QUERY MODE
@@ -220,8 +221,9 @@ object LocalizationConfig {
         enableMeshVisualization = true
         imageQuality = 90
         queryMode = QueryMode.VPS1
-        poseConsistencyCheck = true
-        poseConsistencyThreshold = 10f
+        poseConsistencyCheck = MultiSetSDKConfig.DEFAULT_POSE_CONSISTENCY_CHECK
+        poseConsistencyThreshold = 4f
+        poseConsistencyYawThreshold = 25f
     }
 
     /**
@@ -235,6 +237,7 @@ object LocalizationConfig {
         confidenceThreshold = confidenceThreshold.coerceIn(0.2f, 0.8f)
         hintRadius = hintRadius.coerceIn(1, 100)
         imageQuality = imageQuality.coerceIn(50, 100)
-        poseConsistencyThreshold = poseConsistencyThreshold.coerceIn(3f, 30f)
+        poseConsistencyThreshold = poseConsistencyThreshold.coerceIn(1.5f, 15f)
+        poseConsistencyYawThreshold = poseConsistencyYawThreshold.coerceIn(10f, 60f)
     }
 }

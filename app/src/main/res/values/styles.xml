@@ -154,6 +154,24 @@
         <item name="tint">@color/ar_warning</item>
     </style>
 
+    <style name="ShapeAppearance.MultiSetSDK.MeshToggle" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">22dp</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.Button.MeshToggle" parent="Widget.MaterialComponents.Button">
+        <item name="backgroundTint">@color/ar_scrim</item>
+        <item name="android:textColor">@color/ar_on</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="iconTint">@color/ar_on</item>
+        <item name="iconSize">18dp</item>
+        <item name="elevation">0dp</item>
+        <item name="rippleColor">#33FFFFFF</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.MultiSetSDK.MeshToggle</item>
+    </style>
+
     <style name="TextAppearance.MultiSetSDK.ArStatus" parent="TextAppearance.MaterialComponents.Body2">
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>

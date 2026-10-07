@@ -39,6 +39,26 @@ The SDK never touches an AR runtime. Your app converts each camera frame into a 
 
 ---
 
+## What's New in 2.0.0
+
+| Change | Notes |
+|--------|-------|
+| **Pose consistency gate is on by default** | `poseConsistencyCheck` now defaults to `true`. Instead of a single reference fix, the SDK keeps an **anchor** and lets agreeing fixes from separated viewpoints out-vote it, so a wrong first fix can be corrected without a manual reset. See [Pose Consistency](#pose-consistency-false-positive-check). |
+| **New callbacks** | `onLocalizationCorrected(from, to, trust)` fires when the anchor moves and `onAnchorTrustChanged(trust)` reports its standing (`PROVISIONAL` / `CORROBORATED` / `TRUSTED`, also readable via `MultiSetSDK.anchorTrust`). Both have default no-op implementations. |
+| **Two flat, independent rejection limits** | The gate no longer scales tolerance with anchor age. `poseConsistencyThreshold` (distance, default 4 m, 1.5-15) and the new `poseConsistencyYawThreshold` (heading, default 25°, 10-60) are each applied as-is — either one alone can force a contest. |
+| **Richer `FalsePositiveInfo`** | Adds `yawDeltaDeg`, `thresholdDegrees`, `disagreement` (`DISTANCE` / `HEADING` / `BOTH`), `cause` (`INSUFFICIENT_VIEWPOINTS` / `ANCHOR_HELD_VOTE` / `INLIER_MARGIN`), `challengerSupport` / `requiredSupport` / `incumbentSupport`, `trust` and a `rejection` kind (`FALSE_POSITIVE`, `REESTABLISHING`, `SUSPECTED_ALIASING`). |
+| **Tracking signals** | New `session.notifyWorldOriginReset()` for ARCore `BAD_STATE` / `STOPPED`; `notifyTrackingInterrupted()` stays for recoverable losses. The sample app maps both in `ar/ArTrackingSignals.kt`. A stale anchor's next agreeing fix is now **adopted outright** rather than refined against a reference the gate has stopped trusting. |
+| **`CameraFrame.timestampSeconds`** | Optional monotonic capture time (ARCore `frame.timestamp / 1e9`), used for window TTL, pruning and candidate ageing — it no longer scales the gate's tolerance with anchor age. Defaults to the JVM monotonic clock, so existing `FrameSource` implementations keep compiling. |
+| **Session resets** | `MultiSetSDK.resetLocalizationSession()` is new — the only exit from a bad *first* fix, since that fix bootstraps the anchor unchecked. `resetPoseConsistencyReference()` stays for re-bootstrapping the gate when the anchor itself is fine. |
+| **`worldOriginResetHandler`** | New host boundary (`WorldOriginResetHandler`) for rebuilding the runtime's world origin on a genuine reset. Leaving it unset is supported. |
+| **New config** | `poseConsistencyTuning` (`GateTuning` overrides — its shape changed, see the upgrade notes below) and `mapAliasingRisk` (per-map viewpoint multiplier for repetitive spaces). |
+| **Escalation** | Two consecutive rejections trigger one multi-frame request (5 s cooldown) to break the tie faster. |
+| **Sample app: mesh rendering** | The map mesh's radial reveal now stays centred where you localized instead of drifting with the camera, and covers every part of the GLB. The tracked-object outline is now a glowing rim around the object's edges rather than a fill over the whole mesh. See [Advanced: 3D Mesh Loading](#advanced-3d-mesh-loading) if you copied the renderers into your app. |
+
+**Upgrading from 1.16.0 is source-breaking.** See [Upgrading to 2.0.0](#upgrading-to-200) below before you rebuild.
+
+---
+
 ## What's New in 1.16.0
 
 | Change | Notes |
@@ -277,12 +297,13 @@ val config = MultiSetSDKConfig.Builder(clientId, clientSecret)
     .mapCode("your_map_code")            // or .mapSetCode(…)
     .localizationMode(LocalizationMode.MULTI_FRAME)
     .poseConsistencyCheck(true)
+    .poseConsistencyYawThreshold(25f)
     .build()
 
 MultiSetSDK.initialize(applicationContext, config, callback)
 ```
 
-`MultiSetSDKConfig` validates on construction — blank credentials, a missing map/object identifier, `numberOfFrames` outside 4–6, `imageQuality` outside 1–100, `confidenceThreshold` outside 0–1, `poseConsistencyThreshold` outside 3–30 m, more than 10 object codes, `hintRadius` outside 1–100, or a malformed `baseUrl` all throw immediately.
+`MultiSetSDKConfig` validates on construction — blank credentials, a missing map/object identifier, `numberOfFrames` outside 4–6, `imageQuality` outside 1–100, `confidenceThreshold` outside 0–1, `poseConsistencyThreshold` outside 1.5–15 m, `poseConsistencyYawThreshold` outside 10–60°, more than 10 object codes, `hintRadius` outside 1–100, or a malformed `baseUrl` all throw immediately.
 
 ---
 
@@ -326,6 +347,8 @@ Implement the `MultiSetSDKCallback` interface to receive SDK events:
 | `onLocalizationSuccess(result: LocalizationResult)` | Localization succeeded with result |
 | `onLocalizationFailure(error: String)` | Localization failed with error |
 | `onLocalizationFalsePositive(info: FalsePositiveInfo)` | A fix was rejected as inconsistent with the AR trajectory *(optional)* |
+| `onLocalizationCorrected(from: AnchorPose, to: AnchorPose, trust: AnchorTrust)` | Agreeing fixes out-voted the anchor and the map frame moved; re-parent your own world-space content *(optional)* |
+| `onAnchorTrustChanged(trust: AnchorTrust)` | The corroboration behind the applied anchor changed *(optional)* |
 | `onTrackingStateChanged(state: TrackingState)` | AR tracking state changed |
 | `onObjectTrackingSuccess(result: ObjectTrackingResult)` | Object tracked successfully *(optional)* |
 | `onObjectTrackingFailure(error: String)` | Object tracking failed with error *(optional)* |
@@ -384,9 +407,12 @@ Sessions run the whole capture loop for you — scheduling, retry, background re
 val session = MultiSetSDK.localizationSession(frameSource)   // mode defaults to config
 session.queryMode = QueryMode.VPS2                           // single-frame only
 session.poseConsistencyCheck = true
+session.poseConsistencyYawThreshold = 25f
 session.onLocalizationSuccess = { result -> /* result.position, result.rotation */ }
 session.onLocalizationFailure = { error -> /* MultiSetError */ }
 session.onLocalizationFalsePositive = { info -> /* rejected fix */ }
+session.onLocalizationCorrected = { from, to, trust -> /* anchor moved */ }
+session.onAnchorTrustChanged = { trust -> /* PROVISIONAL / CORROBORATED / TRUSTED */ }
 session.start()
 // …
 session.stop()
@@ -404,10 +430,11 @@ session.stop()
 
 Session failure lambdas receive a typed `MultiSetError`, unlike the SDK-wide callback interface, which reports a `String`.
 
-When the AR runtime loses and regains tracking, tell the localization session so it can invalidate its pose reference:
+When the AR runtime loses tracking, tell the localization session so the pose consistency gate can judge the next fix correctly — see [Pose Consistency](#pose-consistency-false-positive-check):
 
 ```kotlin
-session.notifyTrackingInterrupted()
+session.notifyTrackingInterrupted()   // recoverable loss
+session.notifyWorldOriginReset()      // world origin no longer meaningful
 ```
 
 ---
@@ -454,22 +481,59 @@ Query mode applies to **single-frame localization only** — multi-frame always 
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `poseConsistencyCheck` | Reject fixes that contradict the device's AR trajectory | false |
-| `poseConsistencyThreshold` | How far a new fix may sit from the last accepted one, in metres (3-30) | 10 |
+| `poseConsistencyCheck` | Reject fixes that contradict the device's AR trajectory | **true** |
+| `poseConsistencyThreshold` | Flat distance limit from the anchor, in metres (1.5-15) | 4 |
+| `poseConsistencyYawThreshold` | Flat heading limit from the anchor, in degrees (10-60) | 25 |
+| `poseConsistencyTuning` | `GateTuning` overrides; `null` selects the shipped values | `null` |
+| `mapAliasingRisk` | Per-map multiplier on the viewpoints required to move the anchor, e.g. `mapOf("LOBBY_L2" to 2f)` for repeated structure | empty |
 
-Within one AR session, every fix measures the same map-to-session transform, so the tracker's own trajectory is ground truth. A response placing the map further from the last accepted fix than the threshold allows is a visually-similar mismatch and is discarded, reported via `onLocalizationFalsePositive`:
+#### Upgrading to 2.0.0
+
+- **`poseConsistencyThreshold` narrowed from 3-30 m to 1.5-15 m.** An existing `.poseConsistencyThreshold(20f)` now throws `IllegalArgumentException` at config construction — pick a value inside the new range.
+- **`GateTuning` dropped `rejectionBaseM`, `driftRateMPerSec` and `rejectionMaxM`.** Code built on `poseConsistencyTuning` fails to compile. Migrate `rejectionBaseM`/`rejectionMaxM` to the single flat `rejectionDistanceM`; `driftRateMPerSec` has no replacement — the tolerance no longer scales with time.
+- **`FalsePositiveInfo` and `GateDiagnostics` gained constructor parameters mid-list**, so positional `componentN` access and `copy()` calls shift — source-breaking for host code that constructs them directly (tests, fakes).
+- **The gate now defaults on.** Hosts that never set `poseConsistencyCheck` will start seeing `onLocalizationFalsePositive` and rejected fixes; pass `poseConsistencyCheck = false` to keep the pre-gate behaviour.
+
+Within one AR session every fix measures the same map-to-session transform, so the tracker's own trajectory is ground truth. The first response bootstraps the **anchor** — a multi-frame response arrives already fused from several viewpoints and bootstraps at `AnchorTrust.TRUSTED`, a single frame at `PROVISIONAL`. Every later response is a challenger:
+
+- **Agrees** (within `poseConsistencyThreshold` of distance *and* `poseConsistencyYawThreshold` of yaw — two independent, flat limits; either one alone can force a contest): the anchor is **refined** to the geometric median of its recent agreeing fixes rather than replaced, so slow directional drift cannot walk the map away with a clean log.
+- **Contests**: a vote decides. Support is counted in **distinct query viewpoints** (camera positions 1.5 m or headings 20° apart) — repeating a fix without moving adds nothing, and a multi-frame response counts for at most 2. A trusted anchor needs 3 viewpoints to displace, a corroborated one 2, a provisional one 1; ties go to the anchor. On displacement `onLocalizationCorrected(from, to, trust)` fires before the `onLocalizationSuccess` carrying the new pose.
+- **Rejected**: `onLocalizationFalsePositive` fires and the scene is untouched — neither success nor failure is reported:
 
 | `FalsePositiveInfo` field | Description |
 |---------------------------|-------------|
-| `jumpMeters` | Distance from the tracked anchor |
-| `thresholdMeters` | Tolerance in force |
-| `consecutiveCount` | How many contradicting fixes have agreed with each other so far |
-| `mapCodes` | Map codes the rejected response matched |
-| `confidence` | Confidence of the rejected response |
-| `reason` | Why it was turned down |
-| `summary` | One-line log-ready description |
+| `jumpMeters`, `yawDeltaDeg` | How far the discarded response placed the map from the anchor |
+| `thresholdMeters` | The distance limit in force — always exactly `poseConsistencyThreshold` |
+| `thresholdDegrees` | The heading limit in force — always exactly `poseConsistencyYawThreshold`, independent of `thresholdMeters` |
+| `disagreement` | `DISTANCE` / `HEADING` / `BOTH` — which limit forced the contest |
+| `cause` | `INSUFFICIENT_VIEWPOINTS` / `ANCHOR_HELD_VOTE` / `INLIER_MARGIN` — why the contest was lost. Only `INSUFFICIENT_VIEWPOINTS` means "move and ask again"; check it before comparing `challengerSupport` to `requiredSupport` — on `ANCHOR_HELD_VOTE` the viewpoint count was never the disqualifier |
+| `challengerSupport`, `requiredSupport`, `incumbentSupport` | Viewpoints behind the response, needed to move the anchor, and behind the anchor |
+| `consecutiveCount` | Consecutive rejections since the last accepted fix |
+| `trust` | `AnchorTrust` of the anchor that was kept |
+| `rejection` | `FALSE_POSITIVE`, `REESTABLISHING` (retried quietly), or `SUSPECTED_ALIASING` (enough viewpoints but the server-reported inlier margin was not cleared — re-localizing will not help) |
+| `mapCodes`, `confidence`, `reason`, `summary` | The rejected response's identity and a log-ready line |
 
-After an AR discontinuity the reference is only *stale*: a single corroborating fix re-anchors it. A **fresh** reference is deliberately never overruled, however many fixes agree — that pattern is exactly what a repeatable false match produces. Use the rising `consecutiveCount` to prompt the user, then call `MultiSetSDK.resetPoseConsistencyReference()` to re-bootstrap.
+After two consecutive rejections the session escalates to **one** multi-frame request (5 s cooldown, once per interval, never for `SUSPECTED_ALIASING`). `onAnchorTrustChanged` reports the anchor's standing; `MultiSetSDK.anchorTrust` reads it.
+
+Tell the session about the AR runtime's tracking signals. A recoverable loss (excessive motion, poor features or light) keeps the anchor but marks it stale — its next agreeing fix is **adopted outright** rather than refined, since refining against a reference the gate has stopped believing would land that fix at the midpoint; a world-origin reset (ARCore `TrackingFailureReason.BAD_STATE`, `TrackingState.STOPPED`) discards every offset measured in the old frame:
+
+```kotlin
+session.notifyTrackingInterrupted()   // recoverable loss — anchor kept, stale
+session.notifyWorldOriginReset()      // BAD_STATE / STOPPED — everything dropped
+```
+
+`CameraFrame.timestampSeconds` is the gate's only clock; it drives window TTL, pruning and candidate ageing — it no longer scales the rejection tolerance. Supply the runtime's monotonic capture time (ARCore `frame.timestamp / 1e9`).
+
+```kotlin
+MultiSetSDK.resetPoseConsistencyReference()   // the anchor is fine, re-bootstrap the reference
+MultiSetSDK.resetLocalizationSession()        // the map itself is misplaced, start over
+```
+
+`resetLocalizationSession()` is the only exit from a bad **first** fix: that fix bootstraps the anchor unchecked and, from a multi-frame request, as `TRUSTED`, after which every *correct* response is the one reported through `onLocalizationFalsePositive`. Nothing the gate can observe tells that apart from the healthy case, so offer it from your false-positive UI, not just a toolbar. Put your own scene back with it — remove the map mesh, and move your anchor node to identity and hide it.
+
+ARCore has no equivalent of ARKit's `.resetTracking` (`pause()`/`resume()` deliberately relocalize against the *same* world frame), so a genuinely fresh origin means rebuilding the `Session`. Implement `session.worldOriginResetHandler` where you own it, ending with `notifyWorldOriginReset()`. **Leaving it unset is supported** — the sample app deliberately does so — the SDK's state resets, the world frame does not.
+
+With `poseConsistencyCheck = false` behaviour is identical to the pre-gate SDK: the raw response is applied and no gate callback fires.
 
 ### GPS Settings
 
@@ -686,6 +750,12 @@ val bytes: ByteArray = meshes.downloadMesh(meta.fileUrl!!)
 `MapMeshResult` carries `mapId`, the GLB `meshBytes`, and `localPosition` / `localRotation` for placing the mesh relative to the localized map.
 
 In the sample app, a localized map mesh appears with a radial reveal animation alongside a gizmo at the result pose, while tracked object meshes are rendered on an invisible anchor node with an animated outline.
+
+If you reuse the sample's renderers (`ar/MeshRenderer`, `ar/ObjectMeshRenderer`), keep these in mind:
+
+- **Materials are compiled for Sceneform's Filament (1.57.1).** The sources are in `app/src/main/assets/materials/*.mat` and the compiled files the app loads are in `app/src/main/res/raw/*.filamat`. After editing a `.mat`, recompile it with `matc` from the Filament 1.57.1 release, using the command in the file's header. A `.filamat` built with any other Filament version will not load.
+- **Call the renderers every frame.** From your scene update listener, call `MeshRenderer.onFrame(cameraWorldPosition)`, passing `null` while ARCore isn't tracking. For object tracking, call `ObjectMeshRenderer.onFrame()`. When the scene goes away, call `MeshRenderer.release()`.
+- **Draw the camera feed first when showing object outlines.** The outline hides the inside of the object with a depth-only occluder. Sceneform draws its camera feed last by default, so the camera image would be hidden inside the object's outline and that area would show black. Set `arSceneView.cameraStream.renderPriority = Renderable.RENDER_PRIORITY_FIRST`, as `ObjectTrackingActivity` does.
 
 ---
 

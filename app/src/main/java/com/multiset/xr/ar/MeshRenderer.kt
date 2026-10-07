@@ -9,58 +9,50 @@ package com.multiset.xr.ar
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.google.android.filament.MaterialInstance
 import com.google.ar.sceneform.Node
 import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
-import com.google.ar.sceneform.rendering.Color
-import com.google.ar.sceneform.rendering.Material
-import com.google.ar.sceneform.rendering.MaterialFactory
+import com.google.ar.sceneform.rendering.EngineInstance
 import com.google.ar.sceneform.rendering.ModelRenderable
 import com.google.ar.sceneform.rendering.RenderableInstance
-import com.multiset.xr.R
 import com.multiset.sdk.mesh.MapMeshResult
+import com.multiset.sdk.model.Vec3
+import com.multiset.xr.R
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import com.google.android.filament.Material as FilamentMaterial
 
 /**
- * Renders a VPS map mesh onto a Sceneform [Node] using the radial-reveal material.
+ * Renders a VPS map mesh onto a Sceneform [Node] with the radial-reveal material
+ * (`radial_reveal.mat`): see-through purple with a 1 m yellow grid, uncovered by a circle that grows
+ * outward from the camera, holds for [MeshRevealTiming.DELAY_BETWEEN_LOOPS] seconds, then sweeps
+ * again from wherever the camera is.
  *
- * Ported from com.multiset.sdk.internal.mesh.MeshRenderer, with these adaptations:
- *  - Consumes [MapMeshResult] (has meshBytes, not a file path); bytes are written to a
- *    persistent cache directory (context.filesDir/mesh_cache/{mapId}.glb) and re-used
- *    on subsequent calls for the same map.
- *  - MeshRevealAnimator is the app-local port (package com.multiset.xr.ar).
+ * Port of the iOS SDK's map-mesh reveal (`MeshRenderer.swift`, `MeshRevealAnimator.swift`). The host
+ * calls [onFrame] once per AR frame and [release] when the scene goes away.
  */
-class MeshRenderer(
-    private val context: Context
-) {
+class MeshRenderer(private val context: Context) {
+
     companion object {
         private const val TAG = "MeshRenderer"
-        private const val DEFAULT_ALPHA = 0.35f
 
         /** Persistent GLB cache — not evicted by the OS unlike cacheDir. */
         private const val CACHE_DIR = "mesh_cache"
     }
 
-    private var meshNode: Node? = null
-    private var parentNode: Node? = null
-    private var transparentMaterial: Material? = null
-    private var revealMaterial: Material? = null
+    private var revealMaterial: FilamentMaterial? = null
+    private var mesh: RevealedMesh? = null
     private var currentMapId: String? = null
-    private var meshRevealAnimator: MeshRevealAnimator? = null
-    private var cameraWorldPosition: Vector3? = null
-    private var cameraPositionProvider: (() -> Vector3?)? = null
-
-    var meshColor: Color = Color(0.3f, 0.1f, 0.55f, DEFAULT_ALPHA)
-
-    fun setCameraPositionProvider(provider: (() -> Vector3?)?) {
-        this.cameraPositionProvider = provider
-    }
+    private var meshVisible = true
+    private var loadGeneration = 0
 
     /**
      * Render the map mesh described by [meshResult] as a child of [parentNode].
      *
-     * If a mesh is already shown, this restarts the reveal animation from the current
-     * camera position without re-loading the model.
+     * If the same map is already shown, this restarts the reveal from [cameraWorldPosition]
+     * without re-loading the model.
      *
      * @param meshResult     bytes + pose from [com.multiset.sdk.mesh.MeshRepository].
      * @param parentNode     Sceneform parent (typically the gizmo node).
@@ -73,26 +65,13 @@ class MeshRenderer(
         cameraWorldPosition: Vector3? = null,
         onComplete: (Boolean) -> Unit
     ) {
-        if (isMeshRenderedForMap(meshResult.mapId)) {
-            // Same map still on screen — replay the reveal from the current camera position
-            // rather than re-loading. A *different* map falls through and loadGlbModel swaps it;
-            // matching on meshNode alone left map A's geometry sitting at map B's origin.
-            if (cameraWorldPosition != null) {
-                this.cameraWorldPosition = cameraWorldPosition
-                val node = meshNode
-                val instance = node?.renderableInstance
-                if (node != null && instance != null && revealMaterial != null) {
-                    startRevealAnimation(node, instance)
-                }
-            }
+        val shown = mesh
+        if (shown != null && currentMapId == meshResult.mapId) {
+            shown.restart(System.nanoTime(), cameraWorldPosition)
             onComplete(true)
             return
         }
 
-        this.parentNode = parentNode
-        this.cameraWorldPosition = cameraWorldPosition
-
-        // Resolve (or create) the persistent cache file for this map's GLB.
         val cacheFile = resolveCacheFile(meshResult.mapId, meshResult.meshBytes)
         if (cacheFile == null) {
             Log.e(TAG, "Failed to resolve cache file for mapId=${meshResult.mapId}")
@@ -100,70 +79,198 @@ class MeshRenderer(
             return
         }
 
-        // Try loading custom reveal material first, fall back to transparent.
-        loadRevealMaterial { material ->
-            if (material != null) {
-                revealMaterial = material
-                Log.d(TAG, "Custom reveal material loaded successfully")
-                loadGlbModel(cacheFile, meshResult, parentNode, onComplete)
-            } else {
-                Log.w(TAG, "Custom reveal material unavailable, using fallback transparent material")
-                createTransparentMaterial { fallbackMaterial ->
-                    if (fallbackMaterial != null) {
-                        transparentMaterial = fallbackMaterial
-                    }
-                    loadGlbModel(cacheFile, meshResult, parentNode, onComplete)
+        val generation = ++loadGeneration
+        ModelRenderable.builder()
+            .setSource(context, Uri.fromFile(cacheFile))
+            .setIsFilamentGltf(true)
+            .setRegistryId(meshResult.mapId)
+            .build()
+            .thenAccept { renderable ->
+                if (generation != loadGeneration) {
+                    onComplete(false)
+                    return@thenAccept
                 }
-            }
-        }
-    }
-
-    // ── Material loading ──────────────────────────────────────────────────────
-
-    private fun loadRevealMaterial(onComplete: (Material?) -> Unit) {
-        try {
-            Material.builder()
-                .setSource(context, R.raw.radial_reveal_material)
-                .build()
-                .thenAccept { material ->
-                    // Initialize with hidden state (progress = 0)
-                    try {
-                        material.setFloat4("revealParam", Color(0f, 0f, 0f, 0f))
-                        material.setFloat("maxRadius", 1.0f)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Could not set initial shader params: ${e.message}")
-                    }
-                    onComplete(material)
-                }
-                .exceptionally { throwable ->
-                    Log.e(TAG, "Failed to load reveal material: ${throwable.message}")
-                    onComplete(null)
-                    null
-                }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error building reveal material: ${e.message}")
-            onComplete(null)
-        }
-    }
-
-    private fun createTransparentMaterial(onComplete: (Material?) -> Unit) {
-        MaterialFactory.makeTransparentWithColor(context, meshColor)
-            .thenAccept { material ->
-                try {
-                    material.setFloat4(MaterialFactory.MATERIAL_COLOR, meshColor)
-                } catch (e: Exception) {
-                    // Ignore
-                }
-                onComplete(material)
+                removeMesh()
+                showMesh(renderable, meshResult, parentNode, cameraWorldPosition)
+                onComplete(true)
             }
             .exceptionally { throwable ->
-                Log.e(TAG, "Failed to create transparent material: ${throwable.message}")
-                onComplete(null)
+                Log.e(TAG, "Error loading GLB mesh: ${throwable.message}", throwable)
+                onComplete(false)
                 null
             }
     }
 
-    // ── File cache ────────────────────────────────────────────────────────────
+    /** Advances the reveal; [cameraWorldPosition] is null while ARCore is not tracking. */
+    fun onFrame(cameraWorldPosition: Vector3?) {
+        mesh?.tick(System.nanoTime(), cameraWorldPosition)
+    }
+
+    /**
+     * Shows or hides the map mesh. The choice is remembered, so a mesh loaded after the host
+     * hid them stays hidden rather than popping back in. The reveal keeps running either way,
+     * so unhiding lands mid-sweep rather than restarting.
+     */
+    fun setMeshVisible(visible: Boolean) {
+        meshVisible = visible
+        mesh?.node?.isEnabled = visible
+    }
+
+    /** Takes the mesh down and drops any load still in flight. The renderer stays usable. */
+    fun removeMesh() {
+        loadGeneration++
+        mesh?.destroy()
+        mesh = null
+        currentMapId = null
+    }
+
+    fun hasMesh(): Boolean = mesh != null
+
+    /** [removeMesh] plus the compiled reveal material; call when the AR scene goes away. */
+    fun release() {
+        removeMesh()
+        revealMaterial?.let { material ->
+            if (!EngineInstance.isEngineDestroyed()) EngineInstance.getEngine().destroyMaterial(material)
+        }
+        revealMaterial = null
+    }
+
+    private fun showMesh(
+        renderable: ModelRenderable,
+        meshResult: MapMeshResult,
+        parentNode: Node,
+        cameraWorldPosition: Vector3?,
+    ) {
+        val node = Node()
+        node.setParent(parentNode)
+        val instance = node.setRenderable(renderable)
+        node.localPosition = Vector3(meshResult.localPosition[0], meshResult.localPosition[1], meshResult.localPosition[2])
+        node.localRotation = Quaternion(
+            meshResult.localRotation[0],
+            meshResult.localRotation[1],
+            meshResult.localRotation[2],
+            meshResult.localRotation[3]
+        )
+        node.localScale = Vector3.one()
+        node.isEnabled = meshVisible
+
+        val reveal = revealInstance()
+        val replaced = if (reveal != null) replaceMaterials(instance, reveal) else emptyList()
+        val centre = cameraWorldPosition ?: node.worldPosition
+        mesh = RevealedMesh(node, instance, reveal, replaced, centre)
+        currentMapId = meshResult.mapId
+    }
+
+    private fun revealInstance(): MaterialInstance? {
+        val material = revealMaterial ?: loadRevealMaterial()?.also { revealMaterial = it } ?: return null
+        return material.createInstance().apply { setParameter("reveal", 0f, 0f, 0f, 0f) }
+    }
+
+    private fun loadRevealMaterial(): FilamentMaterial? = runCatching {
+        val bytes = context.resources.openRawResource(R.raw.radial_reveal_material).use { it.readBytes() }
+        val payload = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()).apply {
+            put(bytes)
+            rewind()
+        }
+        FilamentMaterial.Builder().payload(payload, bytes.size).build(EngineInstance.getEngine().filamentEngine)
+    }.onFailure { Log.e(TAG, "Failed to load reveal material", it) }.getOrNull()
+
+    /**
+     * Binds [material] to every primitive of every entity in the GLB and returns what it replaced.
+     * Sceneform's own `setMaterial(index)` keys glTF bindings by entity and so skips any primitive past
+     * the first.
+     */
+    private fun replaceMaterials(instance: RenderableInstance, material: MaterialInstance): List<Binding> {
+        val asset = instance.filamentAsset ?: return emptyList()
+        val manager = EngineInstance.getEngine().renderableManager
+        val replaced = mutableListOf<Binding>()
+        for (entity in asset.entities) {
+            val renderable = manager.getInstance(entity)
+            if (renderable == 0) continue
+            for (primitive in 0 until manager.getPrimitiveCount(renderable)) {
+                replaced += Binding(entity, primitive, manager.getMaterialInstanceAt(renderable, primitive))
+                manager.setMaterialInstanceAt(renderable, primitive, material)
+            }
+        }
+        return replaced
+    }
+
+    /** A primitive's material before the reveal replaced it. */
+    private class Binding(val entity: Int, val primitive: Int, val original: MaterialInstance)
+
+    private inner class RevealedMesh(
+        val node: Node,
+        private val instance: RenderableInstance,
+        private val material: MaterialInstance?,
+        private val replaced: List<Binding>,
+        initialCentre: Vector3,
+    ) {
+        private var centre = initialCentre
+        private var startNanos = System.nanoTime()
+        private var holding = false
+        private var maxRadius = computeMaxRadius()
+        private var duration = MeshRevealTiming.duration(maxRadius)
+        private var lastRadius = -1f
+
+        fun tick(now: Long, camera: Vector3?) {
+            val m = material ?: return
+            val elapsed = (now - startNanos) / 1e9f
+            if (holding) {
+                if (elapsed >= MeshRevealTiming.DELAY_BETWEEN_LOOPS) restart(now, camera)
+                return
+            }
+            val progress = (elapsed / duration).coerceIn(0f, 1f)
+            val radius = progress * maxRadius
+            if (radius != lastRadius) {
+                m.setParameter("reveal", centre.x, centre.y, centre.z, radius)
+                lastRadius = radius
+            }
+            if (progress >= 1f) {
+                holding = true
+                startNanos = now
+            }
+        }
+
+        /** Sweeps again from [camera], or from the last centre while tracking is lost. */
+        fun restart(now: Long, camera: Vector3?) {
+            if (camera != null) centre = camera
+            maxRadius = computeMaxRadius()
+            duration = MeshRevealTiming.duration(maxRadius)
+            holding = false
+            startNanos = now
+        }
+
+        fun destroy() {
+            if (material != null && !EngineInstance.isEngineDestroyed()) {
+                val engine = EngineInstance.getEngine()
+                val manager = engine.renderableManager
+                // Rebind the originals so no renderable still points at the instance destroyed below.
+                for (binding in replaced) {
+                    val renderable = manager.getInstance(binding.entity)
+                    if (renderable != 0) manager.setMaterialInstanceAt(renderable, binding.primitive, binding.original)
+                }
+                engine.destroyMaterialInstance(material)
+            }
+            node.setParent(null)
+            node.renderable = null
+        }
+
+        private fun computeMaxRadius(): Float {
+            val box = instance.filamentAsset?.boundingBox
+                ?: return MeshRevealTiming.maxRadius(centre.toVec3(), null, null)
+            val c = box.center
+            val h = box.halfExtent
+            val world = node.worldModelMatrix
+            var min = Vec3(Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE)
+            var max = Vec3(-Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE)
+            for (sx in floatArrayOf(-1f, 1f)) for (sy in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) {
+                val p = world.transformPoint(Vector3(c[0] + sx * h[0], c[1] + sy * h[1], c[2] + sz * h[2]))
+                min = Vec3(minOf(min.x, p.x), minOf(min.y, p.y), minOf(min.z, p.z))
+                max = Vec3(maxOf(max.x, p.x), maxOf(max.y, p.y), maxOf(max.z, p.z))
+            }
+            return MeshRevealTiming.maxRadius(centre.toVec3(), min, max)
+        }
+    }
 
     /**
      * Returns the cache file for this mapId, writing bytes only when the file is absent.
@@ -184,196 +291,5 @@ class MeshRenderer(
             Log.e(TAG, "Failed to write GLB cache for mapId=$mapId: ${e.message}", e)
             null
         }
-    }
-
-    // ── Model loading ─────────────────────────────────────────────────────────
-
-    private fun loadGlbModel(
-        meshFile: File,
-        meshResult: MapMeshResult,
-        parentNode: Node,
-        onComplete: (Boolean) -> Unit
-    ) {
-        ModelRenderable.builder()
-            .setSource(context, Uri.fromFile(meshFile))
-            .setIsFilamentGltf(true)
-            .setRegistryId(meshResult.mapId)
-            .build()
-            .thenAccept { renderable: ModelRenderable ->
-                removeMesh()
-
-                currentMapId = meshResult.mapId
-
-                val node = Node()
-                meshNode = node
-
-                node.setParent(parentNode)
-
-                val renderableInstance: RenderableInstance = node.setRenderable(renderable)
-
-                // Apply material
-                if (revealMaterial != null) {
-                    applyRevealMaterialToInstance(renderableInstance)
-                } else {
-                    applyTransparentMaterialToInstance(renderableInstance)
-                }
-
-                // Set position/rotation BEFORE starting animation
-                // (animator reads node.worldPosition to compute reveal center)
-                node.localPosition = Vector3(
-                    meshResult.localPosition[0],
-                    meshResult.localPosition[1],
-                    meshResult.localPosition[2]
-                )
-
-                node.localRotation = Quaternion(
-                    meshResult.localRotation[0],
-                    meshResult.localRotation[1],
-                    meshResult.localRotation[2],
-                    meshResult.localRotation[3]
-                )
-
-                node.localScale = Vector3.one()
-
-                // Start reveal animation AFTER position/rotation are set
-                if (revealMaterial != null) {
-                    startRevealAnimation(node, renderableInstance)
-                }
-
-                onComplete(true)
-            }
-            .exceptionally { throwable: Throwable ->
-                Log.e(TAG, "Error loading GLB mesh: ${throwable.message}", throwable)
-                onComplete(false)
-                null
-            }
-    }
-
-    // ── Material application ──────────────────────────────────────────────────
-
-    private fun applyRevealMaterialToInstance(renderableInstance: RenderableInstance) {
-        val material = revealMaterial ?: return
-
-        try {
-            val materialCount = renderableInstance.materialsCount
-            if (materialCount > 0) {
-                for (i in 0 until materialCount) {
-                    try {
-                        renderableInstance.setMaterial(i, material)
-                    } catch (e: IndexOutOfBoundsException) {
-                        break
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Could not set reveal material at index $i: ${e.message}")
-                    }
-                }
-            } else {
-                renderableInstance.setMaterial(material)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error applying reveal material: ${e.message}", e)
-        }
-    }
-
-    private fun applyTransparentMaterialToInstance(renderableInstance: RenderableInstance) {
-        val material = transparentMaterial ?: return
-
-        try {
-            val materialCount = renderableInstance.materialsCount
-
-            if (materialCount > 0) {
-                var successCount = 0
-                for (i in 0 until materialCount) {
-                    try {
-                        renderableInstance.setMaterial(i, material)
-                        successCount++
-
-                        try {
-                            val appliedMaterial = renderableInstance.getMaterial(i)
-                            appliedMaterial.setFloat4(MaterialFactory.MATERIAL_COLOR, meshColor)
-                            appliedMaterial.setFloat(MaterialFactory.MATERIAL_METALLIC, 0.0f)
-                            appliedMaterial.setFloat(MaterialFactory.MATERIAL_ROUGHNESS, 0.7f)
-                        } catch (e: Exception) {
-                            // Ignore
-                        }
-                    } catch (e: IndexOutOfBoundsException) {
-                        break
-                    } catch (e: Exception) {
-                        // Ignore
-                    }
-                }
-                if (successCount == 0) {
-                    try {
-                        renderableInstance.setMaterial(material)
-                    } catch (e: Exception) {
-                        // Ignore
-                    }
-                }
-            } else {
-                renderableInstance.setMaterial(material)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error applying transparent material to instance: ${e.message}", e)
-        }
-    }
-
-    // ── Animation ─────────────────────────────────────────────────────────────
-
-    private fun startRevealAnimation(node: Node, renderableInstance: RenderableInstance) {
-        val camPos = cameraWorldPosition ?: return
-
-        meshRevealAnimator?.stop()
-        val animator = MeshRevealAnimator().apply {
-            loop = true
-            delayBetweenLoops = 20.0f
-        }
-        meshRevealAnimator = animator
-        animator.start(node, renderableInstance, camPos, cameraPositionProvider)
-    }
-
-    // ── Public helpers ────────────────────────────────────────────────────────
-
-    fun setMeshVisible(visible: Boolean) {
-        meshNode?.isEnabled = visible
-    }
-
-    fun removeMesh() {
-        meshRevealAnimator?.stop()
-        meshRevealAnimator = null
-        meshNode?.let { node ->
-            node.setParent(null)
-            node.renderable = null
-        }
-        meshNode = null
-        currentMapId = null
-    }
-
-    fun hasMesh(): Boolean = meshNode != null
-
-    fun updateMeshPosition(position: Vector3) {
-        meshNode?.localPosition = position
-    }
-
-    fun updateMeshRotation(rotation: Quaternion) {
-        meshNode?.localRotation = rotation
-    }
-
-    fun setMeshColor(r: Float, g: Float, b: Float, alpha: Float) {
-        meshColor = Color(r, g, b, alpha)
-        createTransparentMaterial { material ->
-            if (material != null) {
-                transparentMaterial = material
-                meshNode?.renderableInstance?.let { instance ->
-                    applyTransparentMaterialToInstance(instance)
-                }
-            }
-        }
-    }
-
-    fun forceRerender() {
-        removeMesh()
-    }
-
-    fun isMeshRenderedForMap(mapId: String): Boolean {
-        return meshNode != null && currentMapId == mapId
     }
 }
