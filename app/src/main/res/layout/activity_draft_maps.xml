@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        app:navigationContentDescription="@string/close"
+        app:navigationIcon="@drawable/ic_chevron_left"
+        app:navigationIconTint="@color/text_hi"
+        app:titleTextColor="@color/text_hi"
+        tools:title="Draft maps" />
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:id="@+id/headerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:paddingHorizontal="4dp"
+                android:textAppearance="@style/TextAppearance.MultiSetSDK.Meta"
+                android:visibility="gone"
+                tools:text="2 scans on this device, waiting to be uploaded"
+                tools:visibility="visible" />
+
+            <LinearLayout
+                android:id="@+id/draftList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <LinearLayout
+                android:id="@+id/emptyState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="64dp"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingHorizontal="24dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_icon_tile_mapping"
+                    android:importantForAccessibility="no"
+                    android:padding="14dp"
+                    android:src="@drawable/ic_scan"
+                    app:tint="@color/mapping" />
+
+                <TextView
+                    android:id="@+id/emptyTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center"
+                    android:textColor="@color/text_hi"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    tools:text="No drafts on this device" />
+
+                <TextView
+                    android:id="@+id/emptyMessage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Meta"
+                    tools:text="A scan you save without uploading waits here until you send it to your account." />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

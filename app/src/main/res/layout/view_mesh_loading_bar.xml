@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ImageView
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_download_circle"
+        app:tint="@color/ar_on" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/meshLoadingLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/ar_on"
+            android:textSize="12sp" />
+
+        <FrameLayout
+            android:id="@+id/meshLoadingTrack"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_mesh_loading_track">
+
+            <View
+                android:id="@+id/meshLoadingSweep"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_mesh_loading_sweep" />
+        </FrameLayout>
+    </LinearLayout>
+</merge>

@@ -19,6 +19,12 @@ gson = "2.10.1"
 kotlinxCoroutinesAndroid = "1.10.2"
 visionCommon = "17.3.0"
 mockwebserver = "4.12.0"
+xrCompose = "1.0.0-beta01"
+xrRuntime = "1.0.0-rc01"
+xrScenecore = "1.0.0-rc01"
+xrArcore = "1.0.0-rc01"
+extensionsXr = "1.1.0"
+composeBomXr = "2025.07.00"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -26,8 +32,11 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-bom-xr = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBomXr" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
@@ -48,6 +57,11 @@ logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", ver
 okhttp3-okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "mockwebserver" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
+androidx-xr-compose = { group = "androidx.xr.compose", name = "compose", version.ref = "xrCompose" }
+androidx-xr-runtime = { group = "androidx.xr.runtime", name = "runtime", version.ref = "xrRuntime" }
+androidx-xr-scenecore = { group = "androidx.xr.scenecore", name = "scenecore", version.ref = "xrScenecore" }
+androidx-xr-arcore = { group = "androidx.xr.arcore", name = "arcore", version.ref = "xrArcore" }
+extensions1-xr = { group = "com.android.extensions.xr", name = "extensions-xr", version.ref = "extensionsXr" }
 vision-common = { module = "com.google.mlkit:vision-common", version.ref = "visionCommon" }
 
 [plugins]

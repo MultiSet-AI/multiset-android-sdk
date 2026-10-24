@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/Widget.MultiSetSDK.Card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/thumbnail"
+                android:layout_width="@dimen/draft_thumbnail_width"
+                android:layout_height="@dimen/draft_thumbnail_height"
+                android:background="@color/surface_variant"
+                android:importantForAccessibility="no"
+                android:scaleType="center"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.MultiSetSDK.Thumbnail" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/nameText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/text_hi"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    tools:text="Lobby" />
+
+                <TextView
+                    android:id="@+id/factsText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_mid"
+                    android:textSize="12sp"
+                    tools:text="142 frames · 11.0 MB" />
+
+                <TextView
+                    android:id="@+id/scannedText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:textColor="@color/text_low"
+                    android:textSize="12sp"
+                    tools:text="Scanned Sep 7, 11:58 PM" />
+
+                <TextView
+                    android:id="@+id/statusPill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_status_pill"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="Ready to upload" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="14dp"
+            android:background="@color/outline" />
+
+        <TextView
+            android:id="@+id/noteText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/text_mid"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="Uploading 42%. You can leave this screen."
+            tools:visibility="visible" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="1000"
+            android:visibility="gone"
+            app:indicatorColor="@color/brand"
+            app:trackColor="@color/surface_variant"
+            app:trackCornerRadius="2dp"
+            app:trackThickness="4dp" />
+
+        <LinearLayout
+            android:id="@+id/actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/uploadButton"
+                style="@style/Widget.MultiSetSDK.Button.Compact"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:icon="@drawable/ic_cloud"
+                tools:text="Upload" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/deleteButton"
+                style="@style/Widget.MultiSetSDK.Button.Compact.Text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                tools:text="Delete" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

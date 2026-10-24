@@ -6,69 +6,105 @@ Redistribution in source or binary forms must retain this notice.
 */
 package com.multiset.xr.ui
 
+import android.Manifest
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Toast
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.ar.core.Config
 import com.google.ar.core.Session
+import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
-import com.multiset.sdk.model.AnchorTrust
-import com.multiset.sdk.model.GateRejection
-import com.multiset.xr.ar.notifyArTrackingLost
 import com.google.ar.sceneform.Node
 import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.Color
 import com.google.ar.sceneform.rendering.Light
 import com.google.ar.sceneform.ux.ArFragment
-import com.multiset.xr.ar.ArFrameSource
-import com.multiset.xr.ar.GizmoNode
-import com.multiset.xr.ar.MeshRenderer
-import com.multiset.xr.R
+import com.multiset.sdk.MultiSetSDK
+import com.multiset.sdk.MultiSetSDKConfig
+import com.multiset.sdk.camera.ImageProcessor
 import com.multiset.sdk.model.FalsePositiveCause
 import com.multiset.sdk.model.FalsePositiveInfo
+import com.multiset.sdk.model.GateRejection
+import com.multiset.sdk.model.LocalizationMode
+import com.multiset.sdk.model.LocalizationStage
+import com.multiset.sdk.model.RecoveryPhase
+import com.multiset.sdk.session.LocalizationSession
+import com.multiset.sdk.source.GeoHintProvider
+import com.multiset.sdk.ui.MultiSetWatermark
+import com.multiset.xr.R
+import com.multiset.xr.ar.ArFrameSource
+import com.multiset.xr.ar.GizmoNode
+import com.multiset.xr.ar.MapMeshLoads
+import com.multiset.xr.ar.MeshRenderer
+import com.multiset.xr.ar.reportArTracking
 import com.multiset.xr.config.LocalizationConfig
 import com.multiset.xr.databinding.ActivityLocalizationBinding
-import com.multiset.sdk.MultiSetSDK
-import com.multiset.sdk.camera.ImageProcessor
-import com.multiset.sdk.model.LocalizationMode
-import com.multiset.sdk.session.LocalizationSession
-import com.multiset.sdk.ui.MultiSetWatermark
+import com.multiset.xr.mapping.AndroidLocationProvider
+import com.multiset.xr.ui.runstatus.RunStatusCopy
+import com.multiset.xr.ui.runstatus.RunStatusIndicator
+import com.multiset.xr.ui.runstatus.RunStatusState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.multiset.sdk.model.TrackingState as SdkTrackingState
 
 class MultiSetLocalizationActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MultiSetLocalizationActivity"
         const val EXTRA_LOCALIZATION_MODE = "localization_mode"
+        private const val GPS_REFRESH_MS = 1_000L
+
+        // A geo hint narrows the search to where the fix says; one older than this is not sent.
+        private const val GEO_HINT_MAX_AGE_MS = 120_000L
     }
 
     private lateinit var binding: ActivityLocalizationBinding
     private lateinit var arFragment: ArFragment
 
     private var localizationSession: LocalizationSession? = null
+    private var frameSource: ArFrameSource? = null
     private val failureAlert = FailureAlert(com.multiset.xr.R.string.error_title_localization)
     private var gizmoNode: GizmoNode? = null
     private var phoneAnimator: ObjectAnimator? = null
     private var meshRenderer: MeshRenderer? = null
-    private var meshLoadJob: Job? = null
+    private val mapMeshes = MapMeshLoads()
+    private val meshLoadJobs = mutableMapOf<String, Job>()
     private var meshToggle: MeshToggle? = null
+    private var runStatus: RunStatusIndicator? = null
+    private var locationProvider: AndroidLocationProvider? = null
+    private var geoHintProvider: GeoHintProvider? = null
 
     private var isSessionConfigured = false
     private var sessionStarted = false
     private var pendingAutoStart = false
-    private var lastTrackingState = TrackingState.TRACKING
-    private var localizationMode: LocalizationMode = LocalizationMode.MULTI_FRAME
+    // Null until the first frame, so the session hears the first state too
+    private var lastTrackingState: TrackingState? = null
+    private var lastFailureReason: TrackingFailureReason? = null
+    private var isGizmoPlaced = false
+    private var isMapOutOfPlace = false
+    private var isOverlayShown = false
+    private var localizationMode: LocalizationMode = MultiSetSDKConfig.DEFAULT_LOCALIZATION_MODE
     private var watermarkClearance = 0
+
+    private val locationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { locationProvider?.start() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,19 +115,19 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
         localizationMode = try {
             LocalizationMode.valueOf(
-                intent.getStringExtra(EXTRA_LOCALIZATION_MODE) ?: LocalizationMode.MULTI_FRAME.name
+                intent.getStringExtra(EXTRA_LOCALIZATION_MODE) ?: MultiSetSDKConfig.DEFAULT_LOCALIZATION_MODE.name
             )
         } catch (e: IllegalArgumentException) {
-            LocalizationMode.MULTI_FRAME
+            MultiSetSDKConfig.DEFAULT_LOCALIZATION_MODE
         }
 
         Log.d(TAG, "MultiSetLocalizationActivity started in $localizationMode mode")
 
         setupAR()
         setupUI()
+        setupGeoHint()
     }
 
-    // ── AR setup ──────────────────────────────────────────────────────────────
 
     private fun setupAR() {
         val fragment = supportFragmentManager.findFragmentById(binding.arFragment.id)
@@ -123,7 +159,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
             focusMode = Config.FocusMode.AUTO
             lightEstimationMode = Config.LightEstimationMode.DISABLED
-            depthMode = Config.DepthMode.AUTOMATIC
+            depthMode = Config.DepthMode.DISABLED
             planeFindingMode = Config.PlaneFindingMode.DISABLED
         }
         session.configure(config)
@@ -163,10 +199,9 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         scene.addChild(fillLightNode)
     }
 
-    // ── Session wiring ────────────────────────────────────────────────────────
 
     private fun buildAndStartSession() {
-        val frameSource = ArFrameSource(arFragment, this, ImageProcessor())
+        val source = ArFrameSource(arFragment, this, ImageProcessor()).also { frameSource = it }
 
         gizmoNode = GizmoNode(this)
         arFragment.arSceneView.scene.addChild(gizmoNode)
@@ -175,9 +210,10 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
         meshRenderer = MeshRenderer(this)
 
-        val session = MultiSetSDK.localizationSession(frameSource, localizationMode).apply {
+        val session = MultiSetSDK.localizationSession(source, localizationMode).apply {
             backgroundLocalization = LocalizationConfig.backgroundLocalization
             bgLocalizationDurationMs = (LocalizationConfig.backgroundLocalizationIntervalSeconds * 1000).toLong()
+            relocalization = LocalizationConfig.relocalization
             numberOfFrames = LocalizationConfig.numberOfFrames
             frameCaptureIntervalMs = LocalizationConfig.frameCaptureIntervalMs
             confidenceCheck = LocalizationConfig.confidenceCheck
@@ -189,36 +225,57 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             poseConsistencyThreshold = LocalizationConfig.poseConsistencyThreshold
             poseConsistencyYawThreshold = LocalizationConfig.poseConsistencyYawThreshold
             hintMapCodes = LocalizationConfig.hintMapCodes
+            hintPosition = LocalizationConfig.hintPosition
+            hintFloorHeight = LocalizationConfig.hintFloorHeight
+            hintRadius = LocalizationConfig.hintRadius
+            use2DFiltering = LocalizationConfig.use2DFiltering
+            enableGeoHint = LocalizationConfig.enableGeoHint
+            includeGeoCoordinatesInResponse = LocalizationConfig.includeGeoCoordinatesInResponse
 
             onLocalizationRequested = {
                 runOnUiThread {
-                    showScanOverlay()
-                    phoneAnimator?.start()
                     binding.statusText.text = getString(R.string.localizing_status)
                     binding.statusOverlay.visibility = View.VISIBLE
+                }
+            }
+
+            onStageChanged = { stage, isBackground ->
+                runOnUiThread {
+                    if (!isDestroyed && !isFinishing) renderRun(stage, isBackground)
+                }
+            }
+
+            onRecoveryPhaseChanged = { phase, needsRealignment ->
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    isMapOutOfPlace = needsRealignment
+                    applyGizmoVisibility()
+                    when (phase) {
+                        RecoveryPhase.WAITING_FOR_TRACKING -> R.string.recovery_waiting
+                        RecoveryPhase.REALIGNING -> R.string.recovery_realigning
+                        RecoveryPhase.NONE -> null
+                    }?.let {
+                        binding.statusText.text = getString(it)
+                        binding.statusOverlay.visibility = View.VISIBLE
+                    }
                 }
             }
 
             onLocalizationSuccess = { result ->
                 runOnUiThread {
                     if (isDestroyed || isFinishing) return@runOnUiThread
-                    phoneAnimator?.cancel()
-                    hideAllOverlays()
+                    runStatus?.receive(RunStatusState.Succeeded)
 
                     val pos = result.position
                     val rot = result.rotation
-                    val position = Vector3(pos[0], pos[1], pos[2])
-                    val rotation = Quaternion(rot[0], rot[1], rot[2], rot[3])
-
                     gizmoNode?.let { node ->
-                        node.localPosition = position
-                        node.localRotation = rotation
-                        node.show()
+                        node.localPosition = Vector3(pos[0], pos[1], pos[2])
+                        node.localRotation = Quaternion(rot[0], rot[1], rot[2], rot[3])
                     }
+                    isGizmoPlaced = true
+                    applyGizmoVisibility()
 
                     binding.statusText.text = getString(R.string.localized_map, result.mapCode)
-                    binding.localizationStatus.text =
-                        getString(R.string.anchor_trust_status, trustLabel(MultiSetSDK.anchorTrust))
                     binding.statusOverlay.visibility = View.VISIBLE
                     binding.resetButton.visibility = View.VISIBLE
 
@@ -231,36 +288,14 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                     }
 
                     Log.d(TAG, "Localization success — map: ${result.mapCode}, confidence: ${result.confidence}")
-
-                    if (LocalizationConfig.enableMeshVisualization) {
-                        meshLoadJob = lifecycleScope.launch {
-                            try {
-                                val res = MultiSetSDK.meshRepository().loadMapMesh(result.mapCode)
-                                    ?: return@launch
-                                runOnUiThread {
-                                    if (isDestroyed || isFinishing) return@runOnUiThread
-                                    val node = gizmoNode ?: return@runOnUiThread
-                                    meshRenderer?.renderMesh(
-                                        res,
-                                        node,
-                                        arFragment.arSceneView.scene.camera.worldPosition
-                                    ) { success ->
-                                        Log.d(TAG, "Map mesh render result: $success (mapId=${res.mapId})")
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to load map mesh: ${e.message}", e)
-                            }
-                        }
-                    }
+                    loadMapMesh(result.mapCode)
                 }
             }
 
             onLocalizationFalsePositive = { info ->
                 runOnUiThread {
                     if (isDestroyed || isFinishing) return@runOnUiThread
-                    phoneAnimator?.cancel()
-                    hideAllOverlays()
+                    runStatus?.receive(RunStatusState.Failed)
 
                     binding.statusText.text = getString(R.string.false_positive_status)
                     binding.statusOverlay.visibility = View.VISIBLE
@@ -288,19 +323,10 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 }
             }
 
-            onAnchorTrustChanged = { trust ->
-                runOnUiThread {
-                    if (isDestroyed || isFinishing) return@runOnUiThread
-                    binding.localizationStatus.text =
-                        getString(R.string.anchor_trust_status, trustLabel(trust))
-                }
-            }
-
             onLocalizationFailure = { error ->
                 runOnUiThread {
                     if (isDestroyed || isFinishing) return@runOnUiThread
-                    phoneAnimator?.cancel()
-                    hideAllOverlays()
+                    runStatus?.receive(RunStatusState.Failed)
 
                     binding.statusText.text = getString(R.string.localization_failed)
                     binding.statusOverlay.visibility = View.VISIBLE
@@ -328,10 +354,96 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         pendingAutoStart = LocalizationConfig.autoLocalize
     }
 
-    // ── Scene update — relocalization on tracking loss ────────────────────────
+    /**
+     * A run the user is waiting on covers the scene: the capture overlay while frames are taken,
+     * then the server wait. A background refresh or a recovery shows only on the status card.
+     */
+    private fun renderRun(stage: LocalizationStage, isBackground: Boolean) {
+        val session = localizationSession ?: return
+        val awaitingRetry = session.isAwaitingRetry
+        if (stage == LocalizationStage.Idle && awaitingRetry) {
+            runStatus?.keepOpen()
+        } else {
+            runStatus?.receive(RunStatusState.from(stage))
+        }
+
+        isOverlayShown = (stage != LocalizationStage.Idle && !isBackground) || awaitingRetry
+        val capturing = isOverlayShown && stage is LocalizationStage.Capturing
+        binding.captureOverlay.isVisible = capturing
+        binding.serverWaitOverlay.isVisible = isOverlayShown && !capturing
+        if (capturing) {
+            binding.captureStatusText.text = RunStatusCopy.captureStatus(stage)
+            phoneAnimator?.takeUnless { it.isStarted }?.start()
+        } else {
+            phoneAnimator?.cancel()
+            binding.serverWaitText.text = RunStatusCopy.serverWaitText(stage, objectTracking = false)
+        }
+        updateLocalizeButton()
+    }
+
+    private fun updateLocalizeButton() {
+        val session = localizationSession
+        binding.localizeButton.isVisible = !isOverlayShown
+        val enabled = lastTrackingState == TrackingState.TRACKING && session != null && !session.isBusy
+        binding.localizeButton.isEnabled = enabled
+        binding.localizeButton.alpha = if (enabled) 1f else 0.5f
+    }
+
+    /** The gizmo, and the map mesh under it, show once placed and while the scene is where the room is. */
+    private fun applyGizmoVisibility() {
+        val node = gizmoNode ?: return
+        if (isGizmoPlaced && !isMapOutOfPlace) node.show() else node.hide()
+    }
+
+    /**
+     * A fix on a map whose mesh is in the scene only restarts its reveal. A fix on another map of a
+     * map set adds that map's mesh; the meshes already shown or loading stay.
+     */
+    private fun loadMapMesh(mapCode: String) {
+        if (!LocalizationConfig.enableMeshVisualization) return
+        val camera = arFragment.arSceneView.scene.camera.worldPosition
+        val load = when (val action = mapMeshes.onFix(mapCode)) {
+            is MapMeshLoads.Action.RestartReveal -> {
+                meshRenderer?.restartReveal(action.mapId, camera)
+                return
+            }
+            MapMeshLoads.Action.AlreadyLoading -> return
+            is MapMeshLoads.Action.Load -> action
+        }
+
+        meshLoadJobs[mapCode] = lifecycleScope.launch {
+            var rendering = false
+            try {
+                val res = MultiSetSDK.meshRepository().loadMapMesh(mapCode) ?: return@launch
+                if (isDestroyed || isFinishing) return@launch
+                val node = gizmoNode ?: return@launch
+                val renderer = meshRenderer ?: return@launch
+                rendering = true
+                renderer.renderMesh(res, node, arFragment.arSceneView.scene.camera.worldPosition) { success ->
+                    mapMeshes.onLoaded(mapCode, load.ticket, res.mapId.takeIf { success })
+                    Log.d(TAG, "Map mesh render result: $success (mapId=${res.mapId})")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load map mesh: ${e.message}", e)
+            } finally {
+                if (!rendering) mapMeshes.onLoaded(mapCode, load.ticket, null)
+            }
+        }
+    }
+
+    private fun dropMapMeshes() {
+        meshLoadJobs.values.forEach { it.cancel() }
+        meshLoadJobs.clear()
+        mapMeshes.clear()
+    }
+
 
     private fun onSceneUpdate() {
-        meshToggle?.setAvailable(meshRenderer?.hasMesh() == true)
+        val meshLoading = mapMeshes.isLoading || meshRenderer?.isLoading == true
+        binding.meshLoadingBar.isVisible = meshLoading
+        meshToggle?.setAvailable(!meshLoading && meshRenderer?.hasMesh() == true)
 
         val frame = arFragment.arSceneView.arFrame ?: return
         val currentState = frame.camera.trackingState
@@ -349,34 +461,16 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             localizationSession?.start()
         }
 
-        if (currentState != lastTrackingState) {
-            val previous = lastTrackingState
+        val reason = frame.camera.trackingFailureReason
+        // A reason can change while the state does not, e.g. poor features turning into a lost camera.
+        if (currentState != lastTrackingState || reason != lastFailureReason) {
             lastTrackingState = currentState
-
-            if (previous == TrackingState.TRACKING
-                && currentState != TrackingState.TRACKING
-                && sessionStarted
-            ) {
-                // The pose gate must learn the tracker broke even when auto-relocalization is
-                // off, or it keeps validating against an anchor the tracker no longer backs.
-                localizationSession?.notifyArTrackingLost(currentState, frame.camera.trackingFailureReason)
-
-                if (LocalizationConfig.relocalization) {
-                    Log.d(TAG, "AR tracking lost (→ $currentState) — triggering relocalization")
-                    localizationSession?.stop()
-                    localizationSession?.start()
-                }
-            }
+            lastFailureReason = reason
+            // The SDK re-localizes once tracking returns after a break that follows a fix.
+            localizationSession?.reportArTracking(currentState, reason)
+            updateLocalizeButton()
         }
     }
-
-    private fun trustLabel(trust: AnchorTrust): String = getString(
-        when (trust) {
-            AnchorTrust.PROVISIONAL -> R.string.anchor_trust_provisional
-            AnchorTrust.CORROBORATED -> R.string.anchor_trust_corroborated
-            AnchorTrust.TRUSTED -> R.string.anchor_trust_trusted
-        }
-    )
 
     /** Mirrors the iOS demo app's false-positive prompt. */
     private fun showFalsePositiveDialog(info: FalsePositiveInfo) {
@@ -414,24 +508,26 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             .show()
     }
 
-    // ── UI setup ──────────────────────────────────────────────────────────────
 
     /** AR chrome must clear the status bar / gesture handle while the camera stays full-bleed. */
     private fun applyChromeInsets() {
-        binding.statusOverlay.marginForSystemBars(top = true)
+        binding.topLeftColumn.marginForSystemBars(top = true)
         binding.topActions.marginForSystemBars(top = true)
         binding.localizeButton.marginForSystemBars(bottom = true)
         binding.meshToggle.marginForSystemBars(bottom = true) { watermarkClearance }
-        binding.backgroundProgressIndicator.marginForSystemBars(bottom = true)
+        binding.meshLoadingBar.marginForSystemBars(bottom = true) { watermarkClearance }
 
         MultiSetWatermark.attach(this) { clearance ->
             watermarkClearance = clearance
             ViewCompat.requestApplyInsets(binding.meshToggle)
+            ViewCompat.requestApplyInsets(binding.meshLoadingBar)
         }
     }
 
     private fun setupUI() {
         setupPhoneAnimation()
+        binding.meshLoadingBar.setLabel(getString(R.string.mesh_loading_map))
+        runStatus = RunStatusIndicator { binding.runStatusCard.setState(it) }
 
         meshToggle = MeshToggle(binding.meshToggle) { visible ->
             meshRenderer?.setMeshVisible(visible)
@@ -450,17 +546,17 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             // Unlike resetPoseReference(), this re-arms the first-localization latch too.
             localizationSession?.resetSession()
             phoneAnimator?.cancel()
-            hideAllOverlays()
-            meshLoadJob?.cancel()
-            meshLoadJob = null
-            // Hiding the gizmo takes the mesh off screen with it, but the renderer would keep
-            // holding that model and hand it straight back for whatever map is localized next.
+            dropMapMeshes()
+            // Hiding the gizmo takes the meshes off screen with it, but the renderer would keep
+            // holding those models and hand them straight back when their maps are localized next.
             meshRenderer?.removeMesh()
             gizmoNode?.let {
                 it.localPosition = Vector3.zero()
                 it.localRotation = Quaternion.identity()
-                it.hide()
             }
+            isGizmoPlaced = false
+            isMapOutOfPlace = false
+            applyGizmoVisibility()
             binding.resetButton.visibility = View.GONE
             binding.statusText.text = getString(R.string.initializing_status)
 
@@ -478,9 +574,29 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
                 .setNegativeButton(R.string.close_cancel) { dialog, _ -> dialog.dismiss() }
                 .show()
         }
+    }
 
-        // GPS indicator hidden — GPS wiring not available in this app module
-        binding.gpsIndicator.visibility = View.GONE
+    /** The GPS hint needs a location permission; the indicator says whether a fix is going out. */
+    private fun setupGeoHint() {
+        if (!LocalizationConfig.enableGeoHint) return
+        val provider = AndroidLocationProvider(applicationContext).also { locationProvider = it }
+        geoHintProvider = GeoHintProvider { provider.currentFix(GEO_HINT_MAX_AGE_MS) }.also { MultiSetSDK.geoHintProvider = it }
+        binding.gpsIndicator.visibility = View.VISIBLE
+
+        val permissions = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (permissions.none { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
+            locationPermission.launch(permissions)
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    val hasFix = provider.currentFix(GEO_HINT_MAX_AGE_MS)?.isValid() == true
+                    binding.gpsStatusDot.setBackgroundResource(if (hasFix) R.drawable.gps_dot_active else R.drawable.gps_dot_inactive)
+                    delay(GPS_REFRESH_MS)
+                }
+            }
+        }
     }
 
     private fun setupPhoneAnimation() {
@@ -491,33 +607,6 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         }
     }
 
-    // ── Overlay helpers ───────────────────────────────────────────────────────
-
-    private fun showScanOverlay() {
-        binding.localizeButton.visibility = View.GONE
-        binding.backgroundProgressIndicator.visibility = View.GONE
-        when (localizationMode) {
-            LocalizationMode.SINGLE_FRAME -> {
-                binding.singleFrameOverlay.visibility = View.VISIBLE
-                binding.multiFrameOverlay.visibility = View.GONE
-            }
-            LocalizationMode.MULTI_FRAME -> {
-                binding.multiFrameOverlay.visibility = View.VISIBLE
-                binding.singleFrameOverlay.visibility = View.GONE
-            }
-        }
-        binding.apiLoadingOverlay.visibility = View.GONE
-    }
-
-    private fun hideAllOverlays() {
-        binding.singleFrameOverlay.visibility = View.GONE
-        binding.multiFrameOverlay.visibility = View.GONE
-        binding.apiLoadingOverlay.visibility = View.GONE
-        binding.backgroundProgressIndicator.visibility = View.GONE
-        binding.localizeButton.visibility = View.VISIBLE
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun hideInstructionsView() {
         arFragment.view?.let { fragmentView ->
@@ -541,18 +630,42 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         }
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    override fun onResume() {
+        super.onResume()
+        locationProvider?.start()
+    }
+
+    /**
+     * ARCore cannot reset its world frame, and one resumed after a trip to the background may no
+     * longer match the room, so the fix is treated as stale: the map hides and the SDK re-localizes
+     * once tracking is back. Ahead of super.onPause(), which pauses the AR session.
+     */
+    override fun onPause() {
+        frameSource?.markFramesStale()
+        if (sessionStarted) {
+            localizationSession?.reportTrackingState(SdkTrackingState.PAUSED)
+            localizationSession?.notifyWorldOriginReset()
+        }
+        // Reported again on the first frame after the return, even if ARCore is tracking at once.
+        lastTrackingState = TrackingState.PAUSED
+        lastFailureReason = null
+        locationProvider?.stop()
+        super.onPause()
+    }
 
     override fun onDestroy() {
         super.onDestroy()
         failureAlert.dismiss()
         phoneAnimator?.cancel()
+        runStatus?.release()
         localizationSession?.stop()
         localizationSession = null
-        meshLoadJob?.cancel()
-        meshLoadJob = null
+        dropMapMeshes()
         gizmoNode = null
         meshRenderer?.release()
         meshRenderer = null
+        locationProvider?.stop()
+        if (MultiSetSDK.geoHintProvider === geoHintProvider) MultiSetSDK.geoHintProvider = null
     }
 }

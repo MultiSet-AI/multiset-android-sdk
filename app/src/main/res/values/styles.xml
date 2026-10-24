@@ -86,6 +86,63 @@
         <item name="rippleColor">@color/brand_ink</item>
     </style>
 
+    <style name="Widget.MultiSetSDK.Button.Mapping" parent="Widget.MultiSetSDK.Button.Primary">
+        <item name="cornerRadius">24dp</item>
+        <item name="backgroundTint">@color/mapping_enabled</item>
+        <item name="android:textColor">@color/on_mapping</item>
+        <item name="iconTint">@color/on_mapping</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.Button.Mapping.Outlined" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="strokeWidth">1.5dp</item>
+        <item name="strokeColor">@color/mapping_enabled</item>
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="android:textColor">@color/mapping_enabled</item>
+        <item name="rippleColor">@color/mapping</item>
+    </style>
+
+    <!-- Quiet outlined pill: the instruction pager's Skip / Previous / Next. -->
+    <style name="Widget.MultiSetSDK.Button.Pill" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="cornerRadius">22dp</item>
+        <item name="strokeColor">@color/outline</item>
+        <item name="backgroundTint">@color/surface</item>
+        <item name="android:textColor">@color/text_mid_enabled</item>
+        <item name="iconTint">@color/text_mid_enabled</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconPadding">4dp</item>
+        <item name="rippleColor">@color/brand_ink</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.Button.Compact" parent="Widget.MultiSetSDK.Button.Primary">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="iconSize">16dp</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.Button.Compact.Text" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textColor">@color/text_mid</item>
+        <item name="rippleColor">@color/text_mid</item>
+    </style>
+
     <style name="Widget.MultiSetSDK.Button.Segment" parent="Widget.MaterialComponents.Button.OutlinedButton">
         <item name="android:textAllCaps">false</item>
         <item name="android:letterSpacing">0.01</item>
@@ -154,6 +211,11 @@
         <item name="tint">@color/ar_warning</item>
     </style>
 
+    <style name="ShapeAppearance.MultiSetSDK.Thumbnail" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">10dp</item>
+    </style>
+
     <style name="ShapeAppearance.MultiSetSDK.MeshToggle" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">22dp</item>
@@ -181,5 +243,59 @@
     <style name="TextAppearance.MultiSetSDK.ArMeta" parent="TextAppearance.MaterialComponents.Caption">
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">@color/ar_on_mid</item>
+    </style>
+
+    <style name="TextAppearance.MultiSetSDK.ArTitle" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/ar_on</item>
+    </style>
+
+    <style name="TextAppearance.MultiSetSDK.ArMono" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/ar_on</item>
+    </style>
+
+    <!-- Scan screen capsules and banners: one line of emphasised caption over the camera. -->
+    <style name="Widget.MultiSetSDK.ArCapsule" parent="">
+        <item name="android:background">@drawable/bg_ar_capsule</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:drawablePadding">8dp</item>
+        <item name="android:textAppearance">@style/TextAppearance.MultiSetSDK.ArStatus</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.ArBanner" parent="">
+        <item name="android:background">@drawable/bg_ar_banner</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:paddingTop">7dp</item>
+        <item name="android:paddingBottom">7dp</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@android:color/black</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.Button.ArPrimary" parent="Widget.MultiSetSDK.Button.Primary">
+        <item name="backgroundTint">@color/ar_brand_enabled</item>
+        <item name="android:textColor">@color/ar_on_enabled</item>
+    </style>
+
+    <style name="Widget.MultiSetSDK.Button.ArSecondary" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">14dp</item>
+        <item name="strokeColor">@color/ar_track</item>
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="android:textColor">@color/ar_on_enabled</item>
+        <item name="rippleColor">#33FFFFFF</item>
     </style>
 </resources>

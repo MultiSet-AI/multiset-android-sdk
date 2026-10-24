@@ -31,6 +31,16 @@
     <color name="accent_ink">#08657C</color>
     <color name="accent_container">#DCF2F8</color>
 
+    <!-- Mapping (amber): iOS's map-creation colour, kept in both themes. Below 4.5:1 on light
+         surfaces, so it marks a title and a filled pill only, never body text. -->
+    <color name="mapping">#D97706</color>
+    <color name="on_mapping">#FFFFFFFF</color>
+    <color name="mapping_container">#FDF0DC</color>
+    <color name="caution_ink">#8A4B05</color>
+
+    <!-- The instruction artwork's own near-black field, fixed in both themes. -->
+    <color name="instruction_ground">#07060E</color>
+
     <!-- Status -->
     <color name="success_ink">#0F6E3D</color>
     <color name="success_container">#DCF5E6</color>
@@ -47,6 +57,11 @@
     <color name="ar_brand">#8B5CF6</color>
     <color name="ar_accent">#22D3EE</color>
     <color name="ar_warning">#FBBF24</color>
+    <color name="ar_good">#34D399</color>
+    <color name="ar_bad">#F87171</color>
+    <color name="ar_card_scrim">#8C000000</color>
+    <color name="ar_track">#29FFFFFF</color>
+    <color name="ar_field">#14FFFFFF</color>
 
     <!-- Legacy names still referenced by the launcher icon / older drawables -->
     <color name="black">#FF000000</color>

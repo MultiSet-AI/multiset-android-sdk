@@ -1,0 +1,505 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/arFragment"
+        android:name="com.google.ar.sceneform.ux.ArFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.multiset.xr.mapping.pointcloud.MapPointCloudView
+        android:id="@+id/pointView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <!-- Top start: back, then what the scan is keeping while it records -->
+    <LinearLayout
+        android:id="@+id/topStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="12dp"
+        android:orientation="horizontal"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintEnd_toStartOf="@id/topEnd"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/backButton"
+            style="@style/Widget.MultiSetSDK.Fab.ArNeutral"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/close"
+            android:src="@drawable/ic_chevron_left"
+            app:fabSize="mini" />
+
+        <LinearLayout
+            android:id="@+id/guidancePanel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_ar_chip"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="10dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/framesKeptText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="@style/TextAppearance.MultiSetSDK.ArStatus"
+                android:textSize="13sp"
+                tools:text="42 frames kept" />
+
+            <TextView
+                android:id="@+id/trackingIssueText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:drawablePadding="6dp"
+                android:gravity="center_vertical"
+                android:textColor="@color/ar_warning"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="Hold steady — tracking is settling"
+                tools:visibility="visible" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Top end: the clock, then how well tracking is going -->
+    <LinearLayout
+        android:id="@+id/topEnd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="end"
+        android:orientation="vertical"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:id="@+id/timerPanel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_ar_chip"
+            android:gravity="end"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/recordingDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/bg_dot"
+                    android:backgroundTint="@color/ar_bad" />
+
+                <TextView
+                    android:id="@+id/timerText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.ArMono"
+                    tools:text="00:09 / 10:00" />
+            </LinearLayout>
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/timerProgress"
+                android:layout_width="200dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:max="1000"
+                app:indicatorColor="@color/ar_warning"
+                app:trackColor="@color/ar_track"
+                app:trackCornerRadius="2dp"
+                app:trackThickness="4dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/trackingChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_ar_capsule"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="7dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <View
+                android:id="@+id/trackingDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/bg_dot"
+                android:backgroundTint="@color/ar_good" />
+
+            <TextView
+                android:id="@+id/trackingLevelText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textColor="@color/ar_on"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:text="Tracking good" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Warnings above the shutter -->
+    <LinearLayout
+        android:id="@+id/banners"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/recordButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/finalMinuteBanner"
+            style="@style/Widget.MultiSetSDK.ArBanner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            tools:text="1 minute left — the scan stops at 10:00"
+            tools:visibility="visible" />
+
+        <TextView
+            android:id="@+id/motionBanner"
+            style="@style/Widget.MultiSetSDK.ArBanner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
+            tools:text="Move slower"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- Bottom start: the phase in words, and the point display switch while scanning -->
+    <LinearLayout
+        android:id="@+id/bottomStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="28dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/recordButton"
+        app:layout_constraintHorizontal_bias="0"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/statusText"
+            style="@style/Widget.MultiSetSDK.ArCapsule"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="2"
+            tools:text="Tap record to start scanning" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pointsToggle"
+            style="@style/Widget.MultiSetSDK.Button.MeshToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:visibility="gone"
+            app:icon="@drawable/ic_visibility"
+            tools:text="Points"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- The shutter: a glow, a white rim, a black gap, and a violet disc that turns into a red square -->
+    <FrameLayout
+        android:id="@+id/recordButton"
+        android:layout_width="92dp"
+        android:layout_height="92dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <View
+            android:id="@+id/recordGlow"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_record_glow"
+            android:duplicateParentState="true" />
+
+        <FrameLayout
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_record_ring"
+            android:duplicateParentState="true">
+
+            <View
+                android:id="@+id/recordMark"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_record_disc"
+                android:duplicateParentState="true" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <!-- Packaging progress replaces the bottom row -->
+    <LinearLayout
+        android:id="@+id/packagingPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="28dp"
+        android:background="@drawable/bg_ar_chip"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="14dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/packagingText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.MultiSetSDK.ArStatus"
+            android:textSize="13sp"
+            tools:text="Packaging 42%" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/packagingProgress"
+            android:layout_width="240dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="1000"
+            app:indicatorColor="@color/ar_brand"
+            app:trackColor="@color/ar_track"
+            app:trackCornerRadius="2dp"
+            app:trackThickness="4dp" />
+    </LinearLayout>
+
+    <!-- Name card: shown when a scan finishes -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/nameCardOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ar_card_scrim"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:layout_constrainedHeight="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintWidth_max="420dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_ar_card"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/nameTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.ArTitle"
+                        tools:text="Enter Map Name" />
+
+                    <ImageButton
+                        android:id="@+id/nameCloseButton"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/close"
+                        android:src="@drawable/ic_close_circle"
+                        app:tint="@color/ar_on_mid" />
+                </FrameLayout>
+
+                <!-- The hint, its label, comes from MapScanCopy at runtime -->
+                <EditText
+                    android:id="@+id/nameField"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:autofillHints=""
+                    android:background="@drawable/bg_ar_field"
+                    android:imeOptions="actionDone"
+                    android:inputType="textCapWords|textNoSuggestions"
+                    android:minHeight="52dp"
+                    android:paddingHorizontal="14dp"
+                    android:singleLine="true"
+                    android:textColor="@color/ar_on"
+                    android:textColorHint="@color/ar_on_mid"
+                    android:textSize="16sp"
+                    tools:hint="Map name"
+                    tools:ignore="LabelFor" />
+
+                <TextView
+                    android:id="@+id/nameError"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/ar_bad"
+                    android:textSize="12sp"
+                    android:visibility="gone"
+                    tools:text="Name should be at least 3 characters long"
+                    tools:visibility="visible" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/submitButton"
+                    style="@style/Widget.MultiSetSDK.Button.ArPrimary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    tools:text="Submit Map Data" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/saveLaterButton"
+                    style="@style/Widget.MultiSetSDK.Button.ArSecondary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    tools:text="Upload Later (Draft)" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Upload card: follows the upload the name card started -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/uploadOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ar_card_scrim"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:layout_constrainedHeight="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintWidth_max="420dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_ar_card"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <ProgressBar
+                    android:id="@+id/uploadSpinner"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginBottom="12dp"
+                    android:indeterminateTint="@color/ar_on" />
+
+                <ImageView
+                    android:id="@+id/uploadIcon"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/uploadTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.ArTitle"
+                    tools:text="Uploading &quot;Lobby&quot;" />
+
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/uploadProgress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:max="1000"
+                    android:visibility="gone"
+                    app:indicatorColor="@color/ar_brand"
+                    app:trackColor="@color/ar_track"
+                    app:trackCornerRadius="2dp"
+                    app:trackThickness="4dp" />
+
+                <TextView
+                    android:id="@+id/uploadDetail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center"
+                    android:textColor="@color/ar_on_mid"
+                    android:textSize="13sp"
+                    android:visibility="gone"
+                    tools:text="42% — the upload continues while the app is running"
+                    tools:visibility="visible" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/uploadDoneButton"
+                    style="@style/Widget.MultiSetSDK.Button.ArPrimary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:minWidth="140dp"
+                    android:visibility="gone"
+                    tools:text="Done" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

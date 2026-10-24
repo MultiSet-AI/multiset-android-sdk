@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<resources>
+    <string name="app_name">MultiSet Aura</string>
+
+    <string name="capture_permission_grant">Grant camera permission</string>
+    <string name="capture_head_tracking_grant">Grant head tracking permission</string>
+    <string name="loc_target_missing">No map configured</string>
+    <string name="loc_sdk_authenticating">MultiSet: signing in…</string>
+    <string name="loc_sdk_ready">MultiSet: ready</string>
+    <string name="loc_sdk_auth_failed">MultiSet sign-in failed: %1$s</string>
+    <string name="loc_sdk_not_configured">MultiSet is not configured: %1$s</string>
+    <string name="loc_retry_auth">Retry sign-in</string>
+    <string name="loc_trust_provisional">provisional</string>
+    <string name="loc_trust_corroborated">corroborated</string>
+    <string name="loc_trust_trusted">trusted</string>
+    <string name="loc_camera_needed">Camera permission is needed to localize.</string>
+    <string name="loc_head_tracking_needed">Head tracking permission has not been granted.</string>
+    <string name="loc_scene_needed">Placing the map in the room needs the scene understanding permission.</string>
+    <string name="loc_grant_scene">Grant scene permission</string>
+    <string name="loc_mesh_full_space">Showing the map in the room needs Full Space.</string>
+    <string name="loc_switch_full_space">Switch to Full Space</string>
+    <string name="loc_not_android_xr">This sample needs an Android XR device such as XREAL Aura. On a phone, use the :app sample.</string>
+    <string name="loc_confidence">Confidence %1$s</string>
+    <string name="loc_confidence_trust">Confidence %1$s · %2$s</string>
+    <string name="loc_reset">Reset</string>
+    <string name="loc_gizmo">Gizmo</string>
+
+    <string name="home_dismiss">Dismiss</string>
+    <string name="home_back">Back to Home</string>
+    <string name="home_banner_success">Localized in %1$s · %2$s confidence</string>
+    <string name="home_banner_failure">Localization failed: %1$s</string>
+    <string name="home_banner_warning">Fix rejected: %1$s</string>
+    <string name="home_localize">Localize</string>
+    <string name="home_relocalize">Relocalize</string>
+    <string name="home_localizing">Localizing…</string>
+    <string name="home_try_again">Try again</string>
+    <string name="home_mesh_show">Show the map mesh</string>
+    <string name="home_mesh_hide">Hide the map mesh</string>
+    <string name="home_mesh_downloading">Downloading the map mesh</string>
+    <string name="home_target_map">Map %1$s</string>
+    <string name="home_target_map_set">MapSet %1$s</string>
+    <string name="home_objects">Objects: %1$s</string>
+    <string name="home_objects_none">No object codes</string>
+    <string name="home_sdk_version">MultiSet SDK %1$s</string>
+    <string name="home_device_checking">Checking the device…</string>
+    <string name="home_map_localization">Map localization</string>
+    <string name="home_map_localization_body">Localize against the map and see its mesh in the room.</string>
+    <string name="home_map_unavailable">Add MULTISET_MAP_CODE or MULTISET_MAP_SET_CODE to multiset.properties to localize.</string>
+    <string name="home_object_tracking">Object tracking</string>
+    <string name="home_objects_unavailable">Add MULTISET_OBJECT_CODES to multiset.properties to track objects.</string>
+    <string name="home_object_tracking_body">Find the configured objects and outline them in the room.</string>
+
+    <string name="obj_camera_needed">Camera permission is needed to track objects.</string>
+    <string name="obj_scene_needed">Placing outlines on objects needs the scene understanding permission.</string>
+    <string name="obj_full_space">Showing outlines on objects needs Full Space.</string>
+    <string name="obj_banner_success">Found %1$s · %2$s confidence</string>
+    <string name="obj_banner_failure">Object tracking failed: %1$s</string>
+    <string name="obj_outline_show">Show the outlines</string>
+    <string name="obj_outline_hide">Hide the outlines</string>
+    <string name="obj_outline_downloading">Downloading an outline</string>
+    <string name="obj_track">Track</string>
+    <string name="obj_restart">Restart</string>
+    <string name="obj_searching">Searching…</string>
+
+    <string name="status_not_configured">Not configured</string>
+    <string name="status_sign_in_failed">Sign-in failed</string>
+    <string name="status_signing_in">Signing in…</string>
+    <string name="status_camera_off">Camera off</string>
+    <string name="status_camera_starting">Starting camera…</string>
+    <string name="status_camera_unavailable">Camera unavailable</string>
+    <string name="status_tracking_starting">Starting tracking…</string>
+    <string name="status_tracking_lost">Tracking lost</string>
+    <string name="status_tracking_unavailable">Tracking unavailable</string>
+    <string name="status_not_localized">Not localized</string>
+    <string name="status_localizing">Localizing…</string>
+    <string name="status_localization_failed">Localization failed</string>
+    <string name="status_localized">Localized</string>
+    <string name="status_localized_confidence">Localized · %1$d%%</string>
+    <string name="status_objects_idle">Not searching</string>
+    <string name="status_objects_searching">Searching for objects…</string>
+    <string name="status_objects_failed">Object tracking failed</string>
+    <plurals name="status_objects_found">
+        <item quantity="one">%1$d object found</item>
+        <item quantity="other">%1$d objects found</item>
+    </plurals>
+    <plurals name="status_objects_found_confidence">
+        <item quantity="one">%1$d object found · %2$d%%</item>
+        <item quantity="other">%1$d objects found · %2$d%%</item>
+    </plurals>
+
+    <string name="settings_open">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_section_map">Map localization</string>
+    <string name="settings_section_objects">Object tracking</string>
+    <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_section_target">Target</string>
+    <string name="settings_section_environment">Environment</string>
+    <string name="settings_section_status">Status</string>
+    <string name="settings_section_actions">Actions</string>
+    <string name="settings_mode">Mode</string>
+    <string name="settings_mode_single">Single frame</string>
+    <string name="settings_mode_multi">Multi frame</string>
+    <string name="settings_query_mode">Query mode</string>
+    <string name="settings_query_vps1">VPS 1</string>
+    <string name="settings_query_vps2">VPS 2</string>
+    <string name="settings_auto_localize">Auto-localize</string>
+    <string name="settings_background_localization">Background localization</string>
+    <string name="settings_background_interval">Background interval</string>
+    <string name="settings_relocalization">Relocalize after tracking loss</string>
+    <string name="settings_first_localization">First localization until success</string>
+    <string name="settings_number_of_frames">Number of frames</string>
+    <string name="settings_confidence_check">Confidence check</string>
+    <string name="settings_confidence_threshold">Confidence threshold</string>
+    <string name="settings_pose_consistency">Pose consistency check</string>
+    <string name="settings_distance_limit">Distance limit</string>
+    <string name="settings_heading_limit">Heading limit</string>
+    <string name="settings_hint_map_codes">Hint map codes</string>
+    <string name="settings_hint_map_codes_placeholder">MAP_A, MAP_B</string>
+    <string name="settings_hint_map_codes_hint">Comma separated. Used when localizing against a MapSet.</string>
+    <string name="settings_show_alerts">Show alerts</string>
+    <string name="settings_show_mesh">Show map mesh</string>
+    <string name="settings_show_gizmo">Show gizmo</string>
+    <string name="settings_camera_preview">Camera preview</string>
+    <string name="settings_auto_tracking">Auto tracking</string>
+    <string name="settings_background_tracking">Background tracking</string>
+    <string name="settings_restart_tracking">Restart after tracking loss</string>
+    <string name="settings_first_tracking">First tracking until success</string>
+    <string name="settings_show_outline">Show outline</string>
+    <string name="settings_frame_interval">Frame capture interval</string>
+    <string name="settings_image_quality_map">Image quality (map localization)</string>
+    <string name="settings_capture_delay">Capture delay (object tracking)</string>
+    <string name="settings_image_quality_objects">Image quality (object tracking)</string>
+    <string name="settings_object_confidence_check">Confidence check (object tracking)</string>
+    <string name="settings_object_confidence_threshold">Confidence threshold (object tracking)</string>
+    <string name="settings_target">Localize against</string>
+    <string name="settings_target_map">Map</string>
+    <string name="settings_target_map_set">MapSet</string>
+    <string name="settings_base_url">Base URL</string>
+    <string name="settings_base_url_production">Production</string>
+    <string name="settings_base_url_custom">Custom</string>
+    <string name="settings_image_sent">Image sent: 1280×720, the whole camera frame</string>
+    <string name="settings_last_frame">Last frame: %1$s</string>
+    <string name="settings_no_frame">No frame captured yet</string>
+    <string name="settings_frame_problem">Frame problem: %1$s</string>
+    <string name="settings_last_false_positive">Last rejected fix: %1$s</string>
+    <string name="settings_no_false_positive">No rejected fix yet</string>
+    <string name="settings_capture_test_frame">Capture test frame</string>
+    <string name="settings_switch_home_space">Switch to Home Space</string>
+    <string name="settings_reset_session">Reset session</string>
+    <string name="settings_reset_defaults">Reset to defaults</string>
+
+    <string name="error_title_object_tracking">Object tracking failed</string>
+    <string name="error_title_localization">Localization failed</string>
+    <string name="error_title_with_code">%1$s (%2$d)</string>
+    <string name="error_title_auth">Authentication failed</string>
+    <string name="error_title_network">Network error</string>
+    <string name="error_body_auth">Your credentials were rejected (%1$d). Check MULTISET_CLIENT_ID and MULTISET_CLIENT_SECRET in multiset.properties.</string>
+    <string name="error_body_network">Couldn\'t reach the MultiSet API. Check your connection and try again.</string>
+    <string name="error_dismiss">OK</string>
+</resources>

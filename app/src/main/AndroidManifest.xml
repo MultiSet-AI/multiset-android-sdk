@@ -53,5 +53,25 @@ Redistribution in source or binary forms must retain this notice.
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MultiSetSDK.AR" />
+
+        <activity
+            android:name=".ui.mapping.MapScanActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.MultiSetSDK.AR"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.mapping.MappingInstructionsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MultiSetSDK" />
+
+        <activity
+            android:name=".ui.mapping.DraftMapsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MultiSetSDK" />
     </application>
 </manifest>

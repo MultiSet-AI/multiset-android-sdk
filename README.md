@@ -1,79 +1,63 @@
 # MultiSet Android SDK
 
-Visual Positioning System (VPS) SDK for Android applications. Achieve centimeter-level indoor localization and real-time object tracking using computer vision and AR technology.
+Visual Positioning System (VPS) SDK for Android: centimetre-level localization against your MultiSet maps, real-time object tracking, and map scanning on the device.
 
 ---
 
 ## Overview
 
-The MultiSet SDK enables visual positioning and object tracking in your Android applications. It supports both single map and map set localization, providing accurate 6DOF pose estimation with AR visualization capabilities — and a dedicated Object Tracking mode for recognizing and tracking pre-registered physical objects in AR.
-
-This repository ships the SDK as a prebuilt **platform-agnostic** library plus a reference AR sample app:
-
 | Item | Contents |
 |------|----------|
-| `app/libs/multiset-sdk.aar` | The SDK — auth, networking, capture scheduling, pose math, mesh loading. **Zero ARCore/Sceneform dependencies.** |
-| `:app` | ARCore + Sceneform sample app — AR activities, rendering, settings UI. Drop-in reference for your own integration. |
+| `app/libs/multiset-sdk.aar` | The SDK: authentication, networking, capture scheduling, pose math, mesh loading, map scanning and upload. **No ARCore, Sceneform or Jetpack XR dependency.** |
+| `:app` | ARCore + Sceneform sample: localization, object tracking and map-scanning screens. |
+| `:xreal-aura-vps` | Android XR sample for XREAL Aura glasses: Camera2 and the Jetpack XR head pose instead of ARCore, SceneCore instead of Sceneform. |
 
-The SDK never touches an AR runtime. Your app converts each camera frame into a plain `CameraFrame` and hands it to the SDK through the `FrameSource` interface, so the same library runs on ARCore or any other Android XR runtime.
+The SDK never touches an AR runtime. Your app turns each camera frame into a plain `CameraFrame` and hands it over through the `FrameSource` interface, so the same library runs on ARCore or any other Android XR runtime. Map scanning works the same way, through `MultiSetMappingSource`.
 
 ### Key Features
 
-- Visual Positioning System with centimeter-level accuracy
-- Single map and map set localization support
-- Real-time 6DOF pose tracking
-- AR visualization with 3D mesh overlay
-- Single-frame and multi-frame localization modes
-- Background localization support
-- GPS-assisted localization (optional)
-- Customizable localization parameters
-- **Object Tracking** — detect and track pre-registered physical objects in AR
-- **Animated outline mesh** rendered over tracked objects
-- **Background object tracking** with configurable retry intervals
-- **Runtime-agnostic frame source** — integrate on any Android XR platform, not just ARCore
-- **Query mode selection** (VPS-1 / VPS-2) for single-frame localization
-- **False-positive rejection** — discards fixes that contradict the device's own AR trajectory
-- **Automatic token refresh** — short-lived M2M tokens are renewed transparently
-- **Typed failures** — `MultiSetError` classifies server / auth / network / transient errors
-- **Configurable API host** for staging and on-premise deployments
+- Map and MapSet localization, single-frame or multi-frame, with VPS-1 / VPS-2 query modes
+- Background localization, and relocalization after a tracking break
+- Object tracking for up to 10 pre-registered objects
+- Optional false-positive rejection against the device's own AR trajectory
+- Optional GPS hint, and the fix in geographic terms
+- 3D map and object mesh loading
+- Non-LiDAR map scanning, with drafts and upload to your account
+- Automatic token refresh and typed failures (`MultiSetError`)
+- Configurable API host for staging and on-premise deployments
 
 ---
 
-## What's New in 2.0.0
+## What's New in 2.1.0
 
 | Change | Notes |
 |--------|-------|
-| **Pose consistency gate is on by default** | `poseConsistencyCheck` now defaults to `true`. Instead of a single reference fix, the SDK keeps an **anchor** and lets agreeing fixes from separated viewpoints out-vote it, so a wrong first fix can be corrected without a manual reset. See [Pose Consistency](#pose-consistency-false-positive-check). |
-| **New callbacks** | `onLocalizationCorrected(from, to, trust)` fires when the anchor moves and `onAnchorTrustChanged(trust)` reports its standing (`PROVISIONAL` / `CORROBORATED` / `TRUSTED`, also readable via `MultiSetSDK.anchorTrust`). Both have default no-op implementations. |
-| **Two flat, independent rejection limits** | The gate no longer scales tolerance with anchor age. `poseConsistencyThreshold` (distance, default 4 m, 1.5-15) and the new `poseConsistencyYawThreshold` (heading, default 25°, 10-60) are each applied as-is — either one alone can force a contest. |
-| **Richer `FalsePositiveInfo`** | Adds `yawDeltaDeg`, `thresholdDegrees`, `disagreement` (`DISTANCE` / `HEADING` / `BOTH`), `cause` (`INSUFFICIENT_VIEWPOINTS` / `ANCHOR_HELD_VOTE` / `INLIER_MARGIN`), `challengerSupport` / `requiredSupport` / `incumbentSupport`, `trust` and a `rejection` kind (`FALSE_POSITIVE`, `REESTABLISHING`, `SUSPECTED_ALIASING`). |
-| **Tracking signals** | New `session.notifyWorldOriginReset()` for ARCore `BAD_STATE` / `STOPPED`; `notifyTrackingInterrupted()` stays for recoverable losses. The sample app maps both in `ar/ArTrackingSignals.kt`. A stale anchor's next agreeing fix is now **adopted outright** rather than refined against a reference the gate has stopped trusting. |
-| **`CameraFrame.timestampSeconds`** | Optional monotonic capture time (ARCore `frame.timestamp / 1e9`), used for window TTL, pruning and candidate ageing — it no longer scales the gate's tolerance with anchor age. Defaults to the JVM monotonic clock, so existing `FrameSource` implementations keep compiling. |
-| **Session resets** | `MultiSetSDK.resetLocalizationSession()` is new — the only exit from a bad *first* fix, since that fix bootstraps the anchor unchecked. `resetPoseConsistencyReference()` stays for re-bootstrapping the gate when the anchor itself is fine. |
-| **`worldOriginResetHandler`** | New host boundary (`WorldOriginResetHandler`) for rebuilding the runtime's world origin on a genuine reset. Leaving it unset is supported. |
-| **New config** | `poseConsistencyTuning` (`GateTuning` overrides — its shape changed, see the upgrade notes below) and `mapAliasingRisk` (per-map viewpoint multiplier for repetitive spaces). |
-| **Escalation** | Two consecutive rejections trigger one multi-frame request (5 s cooldown) to break the tie faster. |
-| **Sample app: mesh rendering** | The map mesh's radial reveal now stays centred where you localized instead of drifting with the camera, and covers every part of the GLB. The tracked-object outline is now a glowing rim around the object's edges rather than a fill over the whole mesh. See [Advanced: 3D Mesh Loading](#advanced-3d-mesh-loading) if you copied the renderers into your app. |
+| **Map scanning (Non-LiDAR)** | Record a new map on the device with `MultiSetSDK.mapping`, save it as a draft and upload it with the SDK's own credentials. Your runtime supplies frames through `MultiSetMappingSource`. The API mirrors the iOS SDK's. See [Map Scanning](#map-scanning-non-lidar). |
+| **XREAL Aura sample** | `:xreal-aura-vps` runs map and MapSet localization and object tracking on Android XR glasses, with the same AAR and `multiset.properties`. See [XREAL Aura sample](#xreal-aura-sample-xreal-aura-vps). |
+| **Relocalization after a tracking break** | With `relocalization` on, the session re-localizes once tracking has held for 1 s after a break. `recoveryPhase`, `needsRealignment` and `onRecoveryPhaseChanged` tell you when to hide the map. Report tracking with the new `reportTrackingState`. See [Tracking breaks](#tracking-breaks). |
+| **Object tracking across breaks** | `restartTracking` re-tracks once tracking holds again, `onPlacementVisibilityChanged` hides an outline until its object is tracked again, and `resetSession()` re-arms the first track. Object tracking has its own settings on `MultiSetSDKConfig`. |
+| **First localization until success** | A failed first fix is retried silently up to 5 times, then reported once, with background localization on or off. The first object track works the same way. |
+| **Run stages** | Both sessions report `Capturing`, `Uploading`, `AwaitingResponse` and `Idle` through `onStageChanged(stage, isBackground)`. See [Run stages](#run-stages). |
+| **VPS-2 for multi-frame** | `queryMode` is sent with multi-frame queries too, for a map or a MapSet, and is on `MultiSetSDKConfig`. |
+| **Hints and GPS reach the query** | `hintPosition`, `hintFloorHeight`, `hintRadius`, `use2DFiltering`, the GPS hint (`MultiSetSDK.geoHintProvider`) and `includeGeoCoordinatesInResponse` are now sent. The result carries the new `geoPose`. |
+| **Query image size** | `imageLongSide` (default 960, at most 1280) sets the query image's long side. Frames keep their aspect ratio instead of being stretched to 960 × 720. |
+| **New defaults** | Single-frame localization with VPS-1, and `poseConsistencyCheck = false`. |
+| **MapSet mesh placement** | Every MapSet member's mesh is now placed correctly, not only the origin map's. Both samples keep the mesh of every localized member in the scene. |
+| **Response logging** | Every localization response is logged whole under the `MultiSetSDK` tag. |
+| **Sample app** | A run-status UI ported from the iOS SDK, map-scanning screens, one anchor per tracked object, and no ARCore depth request on devices without the Depth API. |
 
-**Upgrading from 1.16.0 is source-breaking.** See [Upgrading to 2.0.0](#upgrading-to-200) below before you rebuild.
+**Upgrading from 2.0.0** needs no source changes, but recompile against the new AAR: some signatures gained parameters. Check the [behaviour changes](#upgrading-from-200).
 
----
+### Earlier releases
 
-## What's New in 1.16.0
+- **2.0.0:** an anchor-based pose consistency gate with `onLocalizationCorrected` and `onAnchorTrustChanged`, flat distance and heading limits, `notifyWorldOriginReset()`, `CameraFrame.timestampSeconds` and `resetLocalizationSession()`. Upgrading from 1.16.0 is source-breaking: see [Upgrading to 2.0.0](#upgrading-to-200).
+- **1.16.0:** the AR-free SDK (`FrameSource` and sessions), false-positive rejection, a configurable API host, query mode, typed failures and automatic token refresh.
 
-| Change | Notes |
-|--------|-------|
-| **AR-free SDK** | ARCore and Sceneform are gone from the SDK entirely; they now live only in the sample app. The AAR runs on any Android XR runtime that can supply a `CameraFrame`. |
-| **False-positive rejection** | Localization fixes that contradict the device's own AR trajectory are discarded and reported via `onLocalizationFalsePositive` instead of moving your content to the wrong place. |
-| **Configurable API host** | `MULTISET_BASE_URL` / `MultiSetSDKConfig.baseUrl` point the SDK at staging or on-premise deployments. Empty means production. |
-| **Query mode** | `QueryMode.VPS1` / `VPS2` for single-frame localization. Multi-frame always runs VPS-1. |
-| **Typed failures** | Session failure callbacks now receive `MultiSetError` (`SERVER` / `AUTH` / `NETWORK` / `TRANSIENT`) rather than a bare string. |
-| **Automatic token refresh** | Short-lived M2M tokens are renewed transparently, with a single retry on HTTP 401. |
-| **Bug fixes** | `stop()` on both sessions now cancels requests already in flight, so a late response can no longer re-apply a pose after you tear the scene down. Map-mesh rendering no longer reuses a previous map's geometry after switching maps. |
+### Upgrading to 2.0.0
 
-**Upgrading from 1.11.x:** the sample app's package changed from `com.multiset.sdk.android` to
-`com.multiset.xr`, and the SDK's own API moved to session objects (`MultiSetSDK.localizationSession(...)`)
-fed by a `FrameSource` you implement. See *The Platform-Agnostic Boundary* below.
+- **`poseConsistencyThreshold` narrowed from 3–30 m to 1.5–15 m.** A value outside the range now throws `IllegalArgumentException` when the config is built.
+- **`GateTuning` dropped `rejectionBaseM`, `driftRateMPerSec` and `rejectionMaxM`.** Move to the single flat `rejectionDistanceM`; the drift rate has no replacement.
+- **`FalsePositiveInfo` and `GateDiagnostics` gained constructor parameters mid-list**, so positional `componentN` access and `copy()` calls in your own code shift.
 
 ---
 
@@ -81,139 +65,46 @@ fed by a `FrameSource` you implement. See *The Platform-Agnostic Boundary* below
 
 | Requirement | Minimum |
 |-------------|---------|
-| Android API Level | 28 (Android 9.0) |
+| Android API level | 28 (Android 9.0); 34 for `:xreal-aura-vps` |
 | Target SDK | 36 |
-| Java Version | 17 |
-| Kotlin Version | 2.2.0+ |
+| Java / Kotlin | 17 / 2.2.0+ |
 | Gradle / AGP | 8.11.1 / 8.10.0 |
-| Device | ARCore-supported with camera (sample app only) |
+| Device | ARCore-supported phone (`:app`), or Android XR glasses such as XREAL Aura (`:xreal-aura-vps`) |
 
-The SDK itself needs only a camera image, a pose, and camera intrinsics — ARCore is a requirement of the sample app, not of the SDK.
+The SDK needs only a camera image, a pose and camera intrinsics; ARCore is a requirement of the sample app, not of the SDK.
 
-### Credentials
-
-Before integrating, obtain your credentials from the MultiSet Developer Portal:
-
-**https://developer.multiset.ai/credentials**
-
-You will need:
-- **Client ID** — Your unique client identifier
-- **Client Secret** — Your authentication secret key
-- **Map Code** or **Map Set Code** — Identifier for your mapped environment (for localization)
-- **Object Code(s)** — Identifiers for pre-registered objects (for object tracking)
+Get your client ID, client secret and map, MapSet or object codes from the [MultiSet Developer Portal](https://developer.multiset.ai/credentials).
 
 ---
 
-## SDK Components
+## Integration
 
-| Component | Description |
-|-----------|-------------|
-| `multiset-sdk` (`.aar`) | Core SDK library — AR-free, unit-testable on plain JVM |
-| `MultiSetSDK` | Singleton entry point (initialize, sessions, raw APIs, mesh repository) |
-| `MultiSetSDKConfig` | Configuration data class with a Java-friendly `Builder` |
-| `MultiSetSDKCallback` | SDK-wide event callbacks |
-| `FrameSource` / `CameraFrame` | The platform-agnostic boundary your runtime implements |
-| Sample App | Reference ARCore + Sceneform implementation with AR activities |
-| `LocalizationConfig.kt` / `ObjectTrackingConfig.kt` | Sample-app settings singletons |
+### 1. Add the AAR and its dependencies
 
----
-
-## Integration Steps
-
-### Step 1: Add the AAR
-
-Copy `multiset-sdk.aar` into your app module's `libs/` directory and depend on it:
+Copy `multiset-sdk.aar` into your module's `libs/` folder. A file dependency carries no dependency metadata, so declare what the SDK uses yourself, or the app compiles and then fails at runtime with `NoClassDefFoundError`:
 
 ```kotlin
-// app/build.gradle.kts
 dependencies {
     implementation(files("libs/multiset-sdk.aar"))
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("com.google.mlkit:vision-common:17.3.0")
+    implementation("androidx.core:core-ktx:1.16.0")
 }
 ```
 
-### Step 2: Configure Dependencies
+Rendering with Sceneform, as `:app` does, also needs ARCore 1.46.0, Sceneform 1.24.6 (the RGregat fork with 16 KB page-size support, from JitPack) and `packaging.jniLibs.useLegacyPackaging = true`. None of these is needed to drive the SDK from another runtime.
 
-> **An AAR referenced as a file dependency carries no dependency metadata.** Unlike a Maven
-> coordinate, nothing is pulled in transitively — you must declare everything the SDK uses
-> yourself, or it will compile and then fail at runtime with `NoClassDefFoundError`.
+### 2. Credentials
 
-The SDK requires these:
-
-```kotlin
-implementation("com.squareup.okhttp3:okhttp:4.12.0")
-implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-implementation("com.google.code.gson:gson:2.10.1")
-implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-implementation("com.google.mlkit:vision-common:17.3.0")
-implementation("androidx.core:core-ktx:1.16.0")
-```
-
-Rendering AR — as the sample app does — additionally requires:
-
-- ARCore 1.46.0 (Sceneform pulls this up to 1.50.0 at resolution)
-- Sceneform 1.24.6 (RGregat fork with 16KB page size support)
-
-Neither is needed if you drive the SDK from a non-ARCore runtime.
-
-### Step 3: Add JitPack Repository
-
-The Sceneform fork is published on JitPack, which must be declared in your project settings. Only apps rendering with Sceneform need this — the core SDK does not.
-
-### Step 4: Configure Packaging Options
-
-Enable legacy JNI packaging (`packaging.jniLibs.useLegacyPackaging = true`) for 16KB page size compatibility with Sceneform's native libraries.
-
----
-
-## SDK Configuration
-
-### Credentials Setup
-
-Credentials are never hand-edited into Gradle files. Copy the template to a properties file at the **repository root** and fill it in:
+The samples read credentials at build time from `multiset.properties` at the repository root. Keep it out of version control:
 
 ```bash
 cp multiset.properties.template multiset.properties
-```
-
-**Keep `multiset.properties` out of version control.** If it is not yet ignored in your checkout, add it before filling in any real values:
-
-```bash
 echo "multiset.properties" >> .gitignore
-git rm --cached multiset.properties      # if it is already tracked
 ```
-
-The file is read at **build time** by `app/build.gradle.kts` and exposed to the app as `BuildConfig` fields, which `MultiSetSDKInit` turns into a `MultiSetSDKConfig`. If the file is missing, every value defaults to empty: the build still succeeds, but the app reports that the SDK is not configured.
-
-**The file, as shipped by the template:**
-
-```properties
-# API Host (Optional)
-# Leave empty to use the production host: https://api.multiset.ai
-MULTISET_BASE_URL=
-
-# Authentication Credentials (Required)
-MULTISET_CLIENT_ID=
-MULTISET_CLIENT_SECRET=
-
-# Map Configuration (Provide one of the following)
-MULTISET_MAP_CODE=
-MULTISET_MAP_SET_CODE=
-
-# Object Tracking Configuration (comma-separated object codes, max 10)
-# example OBJ_001, OBJ_002 ...
-MULTISET_OBJECT_CODES=
-```
-
-| Property | Description | Required |
-|----------|-------------|----------|
-| `MULTISET_BASE_URL` | API host override; empty = production | No |
-| `MULTISET_CLIENT_ID` | Your client identifier | Yes |
-| `MULTISET_CLIENT_SECRET` | Your secret key | Yes |
-| `MULTISET_MAP_CODE` | Single map identifier | One of these |
-| `MULTISET_MAP_SET_CODE` | Map set identifier | is required |
-| `MULTISET_OBJECT_CODES` | Comma-separated object codes | For object tracking |
-
-**A filled-in example:**
 
 ```properties
 MULTISET_BASE_URL=
@@ -224,86 +115,29 @@ MULTISET_MAP_SET_CODE=
 MULTISET_OBJECT_CODES=OBJ_001, OBJ_002
 ```
 
-#### Updating a value
+| Property | Notes |
+|----------|-------|
+| `MULTISET_CLIENT_ID`, `MULTISET_CLIENT_SECRET` | Required. With either one empty, the app reports the SDK as not configured. |
+| `MULTISET_MAP_CODE` or `MULTISET_MAP_SET_CODE` | Fill one. If both are set, `:app` uses the map code; the Aura sample offers a choice in Settings. |
+| `MULTISET_OBJECT_CODES` | Comma-separated, up to 10, for object tracking. |
+| `MULTISET_BASE_URL` | Optional API host for staging or on-premise; empty means `https://api.multiset.ai`. `http://` hosts work in debug builds only. |
 
-Edit the line in place — `KEY=value`, no quotes and no trailing comment on the same line. Because the values are baked into `BuildConfig` at build time, **rebuild after every edit**; re-launching the installed app is not enough:
+At least one map, MapSet or object code is required. Write each value as `KEY=value`, with no quotes or trailing comment, and **rebuild after every edit**: the values are compiled into `BuildConfig`.
 
-```bash
-./gradlew :app:installDebug
-```
-
-In Android Studio, use *Sync Project with Gradle Files* (or just Run) after editing.
-
-#### Credentials — `MULTISET_CLIENT_ID` / `MULTISET_CLIENT_SECRET`
-
-Both are required. Get them from https://developer.multiset.ai/credentials and paste the raw values:
-
-```properties
-MULTISET_CLIENT_ID=ms_client_abc123
-MULTISET_CLIENT_SECRET=ms_secret_xyz789
-```
-
-If either is left empty the app skips initialization entirely and reports the SDK as unavailable, rather than failing later at the first API call.
-
-#### Map — `MULTISET_MAP_CODE` *or* `MULTISET_MAP_SET_CODE`
-
-Fill exactly one and leave the other empty. A single map:
-
-```properties
-MULTISET_MAP_CODE=your_map_code
-MULTISET_MAP_SET_CODE=
-```
-
-A map set (several maps searched together):
-
-```properties
-MULTISET_MAP_CODE=
-MULTISET_MAP_SET_CODE=your_map_set_code
-```
-
-**If both are filled, `MULTISET_MAP_CODE` wins** and the map set code is ignored — so clear the one you are not using rather than leaving a stale value behind. Whichever is active is attached to every localization request; omitting both means localization requests are rejected with HTTP 400.
-
-Map set localization also unlocks `hintMapCodes`, which narrows the search to a subset of the set (see [Localization Hints](#localization-hints)).
-
-#### Object codes — `MULTISET_OBJECT_CODES`
-
-A comma-separated list, **max 10**. Surrounding whitespace is trimmed and empty entries are dropped, so both of these are equivalent:
-
-```properties
-MULTISET_OBJECT_CODES=OBJ_001,OBJ_002
-MULTISET_OBJECT_CODES=OBJ_001, OBJ_002
-```
-
-Leave it empty if you are not using object tracking. Object codes are independent of the map settings — you may set object codes *and* a map code in the same file to use both features from one build. Supplying more than 10 codes fails configuration validation.
-
-At least one of `MULTISET_MAP_CODE`, `MULTISET_MAP_SET_CODE`, or `MULTISET_OBJECT_CODES` must be present; with all three empty the app will not initialize the SDK.
-
-#### API host — `MULTISET_BASE_URL`
-
-Leave it empty to use production (`https://api.multiset.ai`). Set it to point the SDK at a staging server or a machine on your LAN — every endpoint is derived from this one host:
-
-```properties
-MULTISET_BASE_URL=https://staging.multiset.ai
-```
-
-Trailing slashes and surrounding whitespace are trimmed; the value must start with `http://` or `https://`, or configuration fails at startup. Plain `http://` hosts only work in **debug** builds, where the sample app's `app/src/debug/AndroidManifest.xml` enables cleartext traffic — release builds keep it disabled.
-
-The sample app's Settings dialog shows the active host and whether it is Production or Custom. That card is read-only: the host is fixed at build time from `MULTISET_BASE_URL`, because the SDK reads it once, before authenticating.
-
-### Initialization
+### 3. Initialize
 
 ```kotlin
 val config = MultiSetSDKConfig.Builder(clientId, clientSecret)
-    .mapCode("your_map_code")            // or .mapSetCode(…)
-    .localizationMode(LocalizationMode.MULTI_FRAME)
-    .poseConsistencyCheck(true)
-    .poseConsistencyYawThreshold(25f)
+    .mapCode("your_map_code")                          // or .mapSetCode(...) / .objectCodes(...)
+    .localizationMode(LocalizationMode.SINGLE_FRAME)   // the default, with QueryMode.VPS1
     .build()
 
 MultiSetSDK.initialize(applicationContext, config, callback)
 ```
 
-`MultiSetSDKConfig` validates on construction — blank credentials, a missing map/object identifier, `numberOfFrames` outside 4–6, `imageQuality` outside 1–100, `confidenceThreshold` outside 0–1, `poseConsistencyThreshold` outside 1.5–15 m, `poseConsistencyYawThreshold` outside 10–60°, more than 10 object codes, `hintRadius` outside 1–100, or a malformed `baseUrl` all throw immediately.
+`MultiSetSDKConfig` validates on construction. It throws on blank credentials, a missing map or object code, more than 10 object codes, a malformed `baseUrl`, or a value out of range: `numberOfFrames` 4–6, `imageQuality` 1–100, `imageLongSide` 1–1280, `confidenceThreshold` 0–1, `poseConsistencyThreshold` 1.5–15 m, `poseConsistencyYawThreshold` 10–60°, `hintRadius` 1–100.
+
+**Query image size.** Each frame is scaled uniformly, up or down, so its longer side is `imageLongSide` pixels (default 960, at most 1280). Nothing is cropped or stretched, and the intrinsics are scaled with it: ARCore's 640 × 480 image goes out at 960 × 720.
 
 ---
 
@@ -313,13 +147,11 @@ To run the SDK on any XR runtime, implement one interface:
 
 ```kotlin
 interface FrameSource {
-    suspend fun acquire(): CameraFrame?   // return null when no frame is ready
+    suspend fun acquire(): CameraFrame?   // null when no frame is ready
 }
-```
 
-```kotlin
 data class CameraFrame(
-    val bitmap: Bitmap?,                // RGB camera image (null → frame skipped)
+    val bitmap: Bitmap?,                // RGB camera image (null skips the frame)
     val cameraPosition: Vec3,           // world position (x, y, z)
     val cameraRotation: Quat,           // world rotation (x, y, z, w)
     val intrinsics: CameraIntrinsics,   // fx, fy, cx, cy, imageWidth, imageHeight
@@ -327,71 +159,42 @@ data class CameraFrame(
 )
 ```
 
-Pass the **raw, uncorrected** camera pose. Portrait orientation correction — bitmap rotation, quaternion correction and intrinsic axis swap — happens exactly once inside the SDK; pre-correcting produces a double rotation.
+- Pass the **raw, uncorrected** camera pose. The SDK applies the portrait correction (bitmap rotation, quaternion and intrinsics) itself; correcting it beforehand rotates twice.
+- Set `timestampSeconds` to the runtime's monotonic capture time (ARCore `frame.timestamp / 1e9`); the pose consistency check uses it as its clock.
+- Start a session only once the runtime is tracking, or it fails with "Failed to capture frame".
 
-The SDK owns everything else: capture scheduling, retry, background re-localization, confidence gating, JPEG encoding, networking, and pose math. The sample app's `ar/ArFrameSource` is the only AR-aware class in the project and shows the minimal ARCore glue.
-
-**Capture is gated on tracking.** Starting a session before the runtime reports a tracking camera yields "Failed to capture frame"; the sample activities defer `session.start()` until tracking begins.
+The SDK owns everything else: capture scheduling, retry, background localization, confidence gating, JPEG encoding, networking and pose math. The sample's `ar/ArFrameSource.kt` shows the ARCore glue.
 
 ---
 
 ## SDK Callbacks
 
-Implement the `MultiSetSDKCallback` interface to receive SDK events:
+Implement `MultiSetSDKCallback`. Authentication events come from `initialize`; the rest come from the sessions `MultiSetSDK` builds, which report here as well as through their own lambdas.
 
 | Callback | Description |
 |----------|-------------|
-| `onSDKReady()` | SDK initialized and ready |
-| `onAuthenticationSuccess()` | Authentication completed successfully |
-| `onAuthenticationFailure(error: String)` | Authentication failed with error |
-| `onLocalizationSuccess(result: LocalizationResult)` | Localization succeeded with result |
-| `onLocalizationFailure(error: String)` | Localization failed with error |
-| `onLocalizationFalsePositive(info: FalsePositiveInfo)` | A fix was rejected as inconsistent with the AR trajectory *(optional)* |
-| `onLocalizationCorrected(from: AnchorPose, to: AnchorPose, trust: AnchorTrust)` | Agreeing fixes out-voted the anchor and the map frame moved; re-parent your own world-space content *(optional)* |
-| `onAnchorTrustChanged(trust: AnchorTrust)` | The corroboration behind the applied anchor changed *(optional)* |
-| `onTrackingStateChanged(state: TrackingState)` | AR tracking state changed |
-| `onObjectTrackingSuccess(result: ObjectTrackingResult)` | Object tracked successfully *(optional)* |
-| `onObjectTrackingFailure(error: String)` | Object tracking failed with error *(optional)* |
+| `onSDKReady()` | SDK initialized |
+| `onAuthenticationSuccess()` / `onAuthenticationFailure(error)` | Sign-in result |
+| `onLocalizationSuccess(result)` / `onLocalizationFailure(error)` | Localization result |
+| `onLocalizationFalsePositive(info)` | A fix was rejected as inconsistent with the AR trajectory *(optional)* |
+| `onLocalizationCorrected(from, to, trust)` | Agreeing fixes moved the anchor; move your own world-space content *(optional)* |
+| `onAnchorTrustChanged(trust)` | The anchor's standing changed *(optional)* |
+| `onRecoveryPhaseChanged(phase, needsRealignment)` | Recovery after a tracking break moved on; hide map content while `needsRealignment` *(optional)* |
+| `onLocalizationStageChanged(stage, isBackground)` | A localization run moved to its next stage *(optional)* |
+| `onTrackingStateChanged(state)` | A session was told the AR tracking state |
+| `onObjectTrackingSuccess(result)` / `onObjectTrackingFailure(error)` | Object tracking result *(optional)* |
+| `onObjectTrackingStageChanged(stage, isBackground)` | An object tracking run moved to its next stage *(optional)* |
 
-Callbacks marked optional have default no-op implementations — override only what you need.
-
-### Example
+Optional callbacks have no-op defaults.
 
 ```kotlin
 class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
-
-    override fun onSDKReady() { /* SDK initialized */ }
-
-    override fun onAuthenticationSuccess() {
-        // SDK is ready — enable localization and tracking buttons
-    }
-
-    override fun onAuthenticationFailure(error: String) {
-        Log.e(TAG, "Auth failed: $error")
-    }
-
-    override fun onLocalizationSuccess(result: LocalizationResult) {
-        Log.d(TAG, "Position: ${result.position.joinToString()}")
-        Log.d(TAG, "Confidence: ${result.confidence}")
-    }
-
-    override fun onLocalizationFailure(error: String) { /* handle */ }
-
-    override fun onLocalizationFalsePositive(info: FalsePositiveInfo) {
-        Log.w(TAG, info.summary)
-    }
-
-    override fun onTrackingStateChanged(state: TrackingState) { }
-
-    override fun onObjectTrackingSuccess(result: ObjectTrackingResult) {
-        Log.d(TAG, "Tracked: ${result.objectCode}")
-        Log.d(TAG, "Position: ${result.position.joinToString()}")
-        Log.d(TAG, "Confidence: ${result.confidence}")
-    }
-
-    override fun onObjectTrackingFailure(error: String) {
-        Log.e(TAG, "Tracking failed: $error")
-    }
+    override fun onSDKReady() {}
+    override fun onAuthenticationSuccess() { /* enable localization and tracking */ }
+    override fun onAuthenticationFailure(error: String) { Log.e(TAG, "Auth failed: $error") }
+    override fun onLocalizationSuccess(result: LocalizationResult) { Log.d(TAG, "Pose: ${result.position.joinToString()}") }
+    override fun onLocalizationFailure(error: String) {}
+    override fun onTrackingStateChanged(state: TrackingState) {}
 }
 ```
 
@@ -399,281 +202,179 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
 
 ## Sessions
 
-Sessions run the whole capture loop for you — scheduling, retry, background re-tracking, confidence gating and pose math — pulling frames from your `FrameSource`.
+Sessions run the capture loop for you, pulling frames from your `FrameSource`.
 
 **Localization:**
 
 ```kotlin
-val session = MultiSetSDK.localizationSession(frameSource)   // mode defaults to config
-session.queryMode = QueryMode.VPS2                           // single-frame only
-session.poseConsistencyCheck = true
-session.poseConsistencyYawThreshold = 25f
+val session = MultiSetSDK.localizationSession(frameSource)   // settings default to the config
 session.onLocalizationSuccess = { result -> /* result.position, result.rotation */ }
 session.onLocalizationFailure = { error -> /* MultiSetError */ }
 session.onLocalizationFalsePositive = { info -> /* rejected fix */ }
-session.onLocalizationCorrected = { from, to, trust -> /* anchor moved */ }
-session.onAnchorTrustChanged = { trust -> /* PROVISIONAL / CORROBORATED / TRUSTED */ }
-session.start()
-// …
+session.onStageChanged = { stage, isBackground -> /* Capturing / Uploading / AwaitingResponse / Idle */ }
+session.onRecoveryPhaseChanged = { phase, needsRealignment -> /* hide the map while needsRealignment */ }
+session.start()                                              // refused while session.isBusy
 session.stop()
 ```
 
 **Object tracking:**
 
 ```kotlin
-val session = MultiSetSDK.objectTrackingSession(frameSource)  // codes default to config
-session.onTrackingSuccess = { result -> /* result.objectCode, result.position */ }
+val session = MultiSetSDK.objectTrackingSession(frameSource) // codes default to the config
+session.onTrackingSuccess = { result -> /* place result.objectCode's own anchor */ }
 session.onTrackingFailure = { error -> /* MultiSetError */ }
+session.onPlacementVisibilityChanged = { objectCode, visible -> /* hide a stale outline */ }
 session.start()
-session.stop()
+session.resetSession()                                       // forget placements, re-arm the first track
 ```
 
-Session failure lambdas receive a typed `MultiSetError`, unlike the SDK-wide callback interface, which reports a `String`.
+Session failure lambdas receive a typed `MultiSetError`; the SDK-wide callback receives a `String`.
 
-When the AR runtime loses tracking, tell the localization session so the pose consistency gate can judge the next fix correctly — see [Pose Consistency](#pose-consistency-false-positive-check):
+### Run stages
+
+Each run reports `Capturing(captured, required)` while frames are taken, `Uploading` (for 2 s or until the answer), `AwaitingResponse`, then `Idle`, before its result callback. `isBackground` is true for background refreshes, recoveries and automatic re-tracks: show those without covering the scene. While a silent first-fix retry is due the run is `Idle` but `isAwaitingRetry` is true, so keep the user's overlay up; `isBusy` covers both.
+
+### Tracking breaks
+
+Report every AR tracking change to the session, including the first state and the return to tracking:
 
 ```kotlin
-session.notifyTrackingInterrupted()   // recoverable loss
-session.notifyWorldOriginReset()      // world origin no longer meaningful
+session.reportTrackingState(TrackingState.TRACKING)  // also fires a pending recovery after 1 s
+session.reportTrackingState(TrackingState.PAUSED)    // limited tracking: 2 s grace before it counts
+session.notifyTrackingInterrupted()                  // camera lost (ARCore CAMERA_UNAVAILABLE)
+session.notifyWorldOriginReset()                     // BAD_STATE, STOPPED, or back from the background
 ```
+
+With `relocalization` on (the default), a break after a fix arms a **recovery**: once tracking has held for 1 s, the session re-localizes, retrying every second without reporting misses while the scene is out of place. `recoveryPhase` (`NONE`, `WAITING_FOR_TRACKING`, `REALIGNING`) and `needsRealignment` say where it stands: hide the map while `needsRealignment` is true. Nothing is recovered until you have called `reportTrackingState` at least once.
+
+ARCore cannot reset its world frame, and a session resumed from the background may no longer match the room. The sample therefore treats the return as a world-origin reset: in `onPause`, before `super.onPause()`, it calls `reportTrackingState(PAUSED)` and then `notifyWorldOriginReset()`. A `FrameSource` should report `isHostActive = false` while the app is in the background.
+
+The object tracking session takes the same calls. With `restartTracking` on, it re-tracks once tracking has held for 1 s. An interruption hides every placed object through `onPlacementVisibilityChanged(code, false)` until tracking returns; after a world-origin reset each object stays hidden until it is tracked again.
+
+### Upgrading from 2.0.0
+
+- **Single frame is the default localization mode**, with VPS-1. Pass `.localizationMode(LocalizationMode.MULTI_FRAME)` to keep the old default.
+- **`poseConsistencyCheck` defaults to `false`.** Pass `true` to keep the check.
+- **`queryMode` and every hint and GPS setting are now sent**, multi-frame included. Before, only `hintMapCodes` was.
+- **First-until-success is capped at 5 silent retries** and no longer needs background localization.
+- **`start()` is refused while the session is busy**, including a silent retry's wait.
+- **Object tracking has its own settings:** `backgroundObjectTracking` and `firstObjectTrackingUntilSuccess` (both on by default), plus the interval, capture delay and restart. It no longer reads the localization ones.
+- **`MultiSetSDKCallback` also hears the sessions `MultiSetSDK` builds.** If you handle both the callback and the session lambdas, handle each event in one place.
+- **Recompile against the new AAR.** `localizeSingleFrame`'s `queryMode` is now nullable (null uses the config's), both localization raw APIs gained a `geoHint` parameter, and `MultiSetSDKConfig` and `LocalizationResult` gained constructor parameters.
 
 ---
 
 ## Localization Configuration
 
-The sample app exposes these settings through the `LocalizationConfig` singleton (persisted via `ConfigStore`) and its Settings dialog. When integrating directly, the same fields exist on `MultiSetSDKConfig` and on `LocalizationSession`.
+The sample exposes these through `LocalizationConfig` and its Settings dialog. The same settings exist on `MultiSetSDKConfig` and `LocalizationSession`.
 
-### Localization Behavior
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Auto Localize | on | Start once the AR session tracks |
+| Background Localization | on | Keep localizing after a fix, every Background Interval (10–180 s, default 30) |
+| Relocalization | on | Re-localize after a tracking break ([details](#tracking-breaks)) |
+| First Until Success | on | Retry a failed first fix silently, up to 5 times, before reporting it |
+| Number of Frames / Capture Interval | 4 / 500 ms | Multi-frame capture (4–6 frames, 100–1000 ms) |
+| `queryMode` | `VPS1` | `VPS1` (standard) or `VPS2` (deep search), single- and multi-frame |
+| Confidence Check / Threshold | off / 0.3 | Reject fixes below the threshold (0–1) |
+| Image Quality | 90 | JPEG quality (50–100) |
+| Show Alerts / Mesh Visualization | on / on | Sample UI |
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Auto Localize | Start localization automatically when AR session begins | true |
-| Background Localization | Continue localizing after first success | true |
-| Background Interval | Seconds between background localizations (15-180) | 30 |
-| Relocalization | Re-localize when tracking is lost | true |
-| First Until Success | Keep retrying until first localization succeeds | true |
-
-`firstLocalizationUntilSuccess` swallows only **transient** failures. A rejected request — for example HTTP 400 from a malformed map code — surfaces immediately instead of retrying forever.
-
-### Multi-Frame Capture
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Number of Frames | Frames to capture for multi-frame mode (4-6) | 4 |
-| Capture Interval | Milliseconds between frame captures (100-1000) | 500 |
-
-### Query Mode
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `queryMode` | VPS engine for single-frame localization: `VPS1` or `VPS2` | `VPS1` |
-
-Query mode applies to **single-frame localization only** — multi-frame always runs VPS-1. The sample app shows the dropdown only in single-frame mode.
-
-### Confidence Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Confidence Check | Reject localizations below threshold | false |
-| Confidence Threshold | Minimum confidence score (0.0-1.0) | 0.3 |
+First-until-success retries 0.5 s apart, backing off to 4, 8 and 12 s after a timeout, an HTTP 5xx or a 429. Any other HTTP 4xx is reported at once. It applies only to the first fix of a session, and `resetSession()` re-arms it.
 
 ### Pose Consistency (False-Positive Check)
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `poseConsistencyCheck` | Reject fixes that contradict the device's AR trajectory | **true** |
-| `poseConsistencyThreshold` | Flat distance limit from the anchor, in metres (1.5-15) | 4 |
-| `poseConsistencyYawThreshold` | Flat heading limit from the anchor, in degrees (10-60) | 25 |
-| `poseConsistencyTuning` | `GateTuning` overrides; `null` selects the shipped values | `null` |
-| `mapAliasingRisk` | Per-map multiplier on the viewpoints required to move the anchor, e.g. `mapOf("LOBBY_L2" to 2f)` for repeated structure | empty |
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `poseConsistencyCheck` | **off** | Reject fixes that contradict the device's AR trajectory |
+| `poseConsistencyThreshold` | 4 m | Distance limit from the anchor (1.5–15) |
+| `poseConsistencyYawThreshold` | 25° | Heading limit from the anchor (10–60) |
+| `poseConsistencyTuning` | `null` | `GateTuning` overrides |
+| `mapAliasingRisk` | empty | Per-map multiplier on the viewpoints needed to move the anchor, for repetitive spaces, e.g. `mapOf("LOBBY_L2" to 2f)` |
 
-#### Upgrading to 2.0.0
+The first fix sets the **anchor**: `TRUSTED` from a multi-frame query, `PROVISIONAL` from a single frame. A later fix within both limits refines it. A fix beyond either limit is contested: it moves the anchor only when enough fixes from distinct viewpoints agree on it (3 for a trusted anchor, 2 for a corroborated one, 1 for a provisional one), and `onLocalizationCorrected(from, to, trust)` then fires before the success. Otherwise `onLocalizationFalsePositive(info)` fires and the scene is untouched. After two consecutive rejections the session sends one multi-frame query (5 s cooldown).
 
-- **`poseConsistencyThreshold` narrowed from 3-30 m to 1.5-15 m.** An existing `.poseConsistencyThreshold(20f)` now throws `IllegalArgumentException` at config construction — pick a value inside the new range.
-- **`GateTuning` dropped `rejectionBaseM`, `driftRateMPerSec` and `rejectionMaxM`.** Code built on `poseConsistencyTuning` fails to compile. Migrate `rejectionBaseM`/`rejectionMaxM` to the single flat `rejectionDistanceM`; `driftRateMPerSec` has no replacement — the tolerance no longer scales with time.
-- **`FalsePositiveInfo` and `GateDiagnostics` gained constructor parameters mid-list**, so positional `componentN` access and `copy()` calls shift — source-breaking for host code that constructs them directly (tests, fakes).
-- **The gate now defaults on.** Hosts that never set `poseConsistencyCheck` will start seeing `onLocalizationFalsePositive` and rejected fixes; pass `poseConsistencyCheck = false` to keep the pre-gate behaviour.
-
-Within one AR session every fix measures the same map-to-session transform, so the tracker's own trajectory is ground truth. The first response bootstraps the **anchor** — a multi-frame response arrives already fused from several viewpoints and bootstraps at `AnchorTrust.TRUSTED`, a single frame at `PROVISIONAL`. Every later response is a challenger:
-
-- **Agrees** (within `poseConsistencyThreshold` of distance *and* `poseConsistencyYawThreshold` of yaw — two independent, flat limits; either one alone can force a contest): the anchor is **refined** to the geometric median of its recent agreeing fixes rather than replaced, so slow directional drift cannot walk the map away with a clean log.
-- **Contests**: a vote decides. Support is counted in **distinct query viewpoints** (camera positions 1.5 m or headings 20° apart) — repeating a fix without moving adds nothing, and a multi-frame response counts for at most 2. A trusted anchor needs 3 viewpoints to displace, a corroborated one 2, a provisional one 1; ties go to the anchor. On displacement `onLocalizationCorrected(from, to, trust)` fires before the `onLocalizationSuccess` carrying the new pose.
-- **Rejected**: `onLocalizationFalsePositive` fires and the scene is untouched — neither success nor failure is reported:
-
-| `FalsePositiveInfo` field | Description |
-|---------------------------|-------------|
-| `jumpMeters`, `yawDeltaDeg` | How far the discarded response placed the map from the anchor |
-| `thresholdMeters` | The distance limit in force — always exactly `poseConsistencyThreshold` |
-| `thresholdDegrees` | The heading limit in force — always exactly `poseConsistencyYawThreshold`, independent of `thresholdMeters` |
-| `disagreement` | `DISTANCE` / `HEADING` / `BOTH` — which limit forced the contest |
-| `cause` | `INSUFFICIENT_VIEWPOINTS` / `ANCHOR_HELD_VOTE` / `INLIER_MARGIN` — why the contest was lost. Only `INSUFFICIENT_VIEWPOINTS` means "move and ask again"; check it before comparing `challengerSupport` to `requiredSupport` — on `ANCHOR_HELD_VOTE` the viewpoint count was never the disqualifier |
-| `challengerSupport`, `requiredSupport`, `incumbentSupport` | Viewpoints behind the response, needed to move the anchor, and behind the anchor |
-| `consecutiveCount` | Consecutive rejections since the last accepted fix |
-| `trust` | `AnchorTrust` of the anchor that was kept |
-| `rejection` | `FALSE_POSITIVE`, `REESTABLISHING` (retried quietly), or `SUSPECTED_ALIASING` (enough viewpoints but the server-reported inlier margin was not cleared — re-localizing will not help) |
-| `mapCodes`, `confidence`, `reason`, `summary` | The rejected response's identity and a log-ready line |
-
-After two consecutive rejections the session escalates to **one** multi-frame request (5 s cooldown, once per interval, never for `SUSPECTED_ALIASING`). `onAnchorTrustChanged` reports the anchor's standing; `MultiSetSDK.anchorTrust` reads it.
-
-Tell the session about the AR runtime's tracking signals. A recoverable loss (excessive motion, poor features or light) keeps the anchor but marks it stale — its next agreeing fix is **adopted outright** rather than refined, since refining against a reference the gate has stopped believing would land that fix at the midpoint; a world-origin reset (ARCore `TrackingFailureReason.BAD_STATE`, `TrackingState.STOPPED`) discards every offset measured in the old frame:
+| `FalsePositiveInfo` | Description |
+|---------------------|-------------|
+| `jumpMeters`, `yawDeltaDeg` | How far the rejected fix was from the anchor |
+| `thresholdMeters`, `thresholdDegrees` | The limits in force |
+| `disagreement` | `DISTANCE`, `HEADING` or `BOTH` |
+| `cause` | `INSUFFICIENT_VIEWPOINTS` (move and ask again), `ANCHOR_HELD_VOTE` or `INLIER_MARGIN` |
+| `rejection` | `FALSE_POSITIVE`, `REESTABLISHING` (retried quietly) or `SUSPECTED_ALIASING` (re-localizing will not help) |
+| `challengerSupport`, `requiredSupport`, `consecutiveCount`, `trust` | Viewpoints behind the fix and needed to move the anchor, the rejection streak, the anchor's standing |
+| `mapCodes`, `confidence`, `summary` | The rejected fix and a log-ready line |
 
 ```kotlin
-session.notifyTrackingInterrupted()   // recoverable loss — anchor kept, stale
-session.notifyWorldOriginReset()      // BAD_STATE / STOPPED — everything dropped
+MultiSetSDK.resetPoseConsistencyReference()   // the anchor is fine; re-bootstrap the reference
+MultiSetSDK.resetLocalizationSession()        // the map itself is misplaced; start over
 ```
 
-`CameraFrame.timestampSeconds` is the gate's only clock; it drives window TTL, pruning and candidate ageing — it no longer scales the rejection tolerance. Supply the runtime's monotonic capture time (ARCore `frame.timestamp / 1e9`).
+`resetLocalizationSession()` is the only way out of a bad **first** fix, which sets the anchor unchecked. Offer it from your false-positive UI, and remove your map mesh with it. To rebuild the runtime's world origin on a reset, set `session.worldOriginResetHandler`; leaving it unset is supported.
+
+### GPS and Localization Hints
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `enableGeoHint` | off | Send the device's GPS fix as a hint (needs a geo-referenced map) |
+| `includeGeoCoordinatesInResponse` | off | Return the fix in geographic terms: `geoCoordinates` and `geoPose` |
+| `hintMapCodes` | empty | Restrict a MapSet search to these maps (MapSet only) |
+| `hintPosition` | empty | Approximate position, `"x,y,z"` |
+| `hintFloorHeight` | empty | Floor and ceiling, `"floor,ceiling"`, e.g. `"0,5"` |
+| `hintRadius` | 25 | Search radius in metres around a geo or position hint (1–100) |
+| `use2DFiltering` | off | Ignore altitude when filtering by the geo hint |
+
+The SDK has no location stack: you supply the position and own the permission.
 
 ```kotlin
-MultiSetSDK.resetPoseConsistencyReference()   // the anchor is fine, re-bootstrap the reference
-MultiSetSDK.resetLocalizationSession()        // the map itself is misplaced, start over
+MultiSetSDK.geoHintProvider = GeoHintProvider { latestFix }   // GeoCoordinates?; null sends nothing
 ```
 
-`resetLocalizationSession()` is the only exit from a bad **first** fix: that fix bootstraps the anchor unchecked and, from a multi-frame request, as `TRUSTED`, after which every *correct* response is the one reported through `onLocalizationFalsePositive`. Nothing the gate can observe tells that apart from the healthy case, so offer it from your false-positive UI, not just a toolbar. Put your own scene back with it — remove the map mesh, and move your anchor node to identity and hide it.
-
-ARCore has no equivalent of ARKit's `.resetTracking` (`pause()`/`resume()` deliberately relocalize against the *same* world frame), so a genuinely fresh origin means rebuilding the `Session`. Implement `session.worldOriginResetHandler` where you own it, ending with `notifyWorldOriginReset()`. **Leaving it unset is supported** — the sample app deliberately does so — the SDK's state resets, the world frame does not.
-
-With `poseConsistencyCheck = false` behaviour is identical to the pre-gate SDK: the raw response is applied and no gate callback fires.
-
-### GPS Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Enable Geo Hint | Send GPS coordinates to improve localization | false |
-| Include Geo Response | Include geo coordinates in result | false |
-
-**Note:** Geo hint requires location permissions and a geo-referenced map.
-
-### Localization Hints
-
-Optional hints that narrow the localization search. All are disabled by default — set them before launching the AR activity.
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `hintMapCodes` | Subset of map codes within a map set to restrict localization to (map set localization only) | empty |
-| `hintPosition` | Approximate position hint in `"x,y,z"` format | empty |
-| `hintFloorHeight` | Floor/ceiling height constraint in `"floor,ceiling"` format, e.g. `"0,5"` | empty |
-| `hintRadius` | Search radius in meters for geo spatial filtering, applied when a geo or position hint is provided (1-100) | 25 |
-| `use2DFiltering` | Skip altitude (Y-axis) in geo hint filtering, using only horizontal distance | false |
-
-```kotlin
-LocalizationConfig.hintMapCodes = listOf("MAP_CODE_1", "MAP_CODE_2")
-LocalizationConfig.hintPosition = "12.5,0.0,-3.2"
-LocalizationConfig.hintFloorHeight = "0,5"
-LocalizationConfig.hintRadius = 25
-LocalizationConfig.use2DFiltering = false
-```
-
-`hintMapCodes` only applies to map set localization; it is ignored for single-map localization.
-
-### UI Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Show Alerts | Display toast messages for status | true |
-| Mesh Visualization | Show 3D mesh overlay after localization | true |
-
-### Image Quality
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Image Quality | JPEG quality for captured images (50-100) | 90 |
+`hintRadius` and `use2DFiltering` are sent only with a geo or position hint, and `use2DFiltering` is forced for a hint without altitude.
 
 ---
 
 ## Object Tracking Configuration
 
-The sample app provides an `ObjectTrackingConfig` singleton to customize tracking behavior. Configure these settings before launching `ObjectTrackingActivity`.
+The sample exposes these through `ObjectTrackingConfig`. On `MultiSetSDKConfig` they are `autoObjectTracking`, `backgroundObjectTracking`, `backgroundObjectTrackingIntervalSeconds`, `restartObjectTracking`, `firstObjectTrackingUntilSuccess` and `objectTrackingCaptureDelayMs`.
 
-### Object Codes
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `objectCodes` | | Up to 10 pre-registered objects |
+| `autoTracking` | on | Start once the AR session tracks |
+| `backgroundTracking`, `bgTrackingDurationSeconds` | on, 15 s | Re-track at this interval (5–30 s) |
+| `restartTracking` | on | Re-track once AR tracking holds again after a loss |
+| `firstTrackingUntilSuccess` | on | Retry a failed first track silently, up to 5 times |
+| `captureDelayMs` | 1000 | Hold before each capture (500–3000 ms) |
+| `confidenceCheck`, `confidenceThreshold` | on, 0.3 | Reject results below the threshold (0.2–0.8) |
+| `imageQuality` | 80 | JPEG quality (50–100) |
+| `showAlerts` | on | Sample UI |
 
-```kotlin
-ObjectTrackingConfig.objectCodes = arrayOf("object_code_1", "object_code_2")
-```
-
-Up to 10 object codes can be tracked simultaneously. Object codes are identifiers for pre-registered physical objects in the MultiSet platform.
-
-### Tracking Behavior
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `autoTracking` | Start tracking automatically when AR session begins | true |
-| `backgroundTracking` | Continue tracking in background after first success | true |
-| `bgTrackingDurationSeconds` | Interval between background tracking attempts in seconds (5-30) | 15 |
-| `restartTracking` | Restart tracking when AR tracking state is lost | true |
-| `firstTrackingUntilSuccess` | Keep retrying silently until first track succeeds | true |
-| `captureDelayMs` | Delay before capturing a frame in milliseconds | 1000 |
-
-### Confidence Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `confidenceCheck` | Reject tracking results below threshold | true |
-| `confidenceThreshold` | Minimum confidence score to accept result (0.2-0.8) | 0.3 |
-
-### UI Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `showAlerts` | Display toast messages for tracking status | true |
-
-### Image Quality
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `imageQuality` | JPEG quality for captured frames (50-100) | 80 |
-
-### Example Setup
+Give each tracked object its **own** anchor: one result moves one object.
 
 ```kotlin
-// Configure object tracking before launching the activity
-ObjectTrackingConfig.objectCodes = arrayOf("OBJ_XXXXXXYYY", "OBJ_XXXXXXZZZ")
-ObjectTrackingConfig.autoTracking = true
-ObjectTrackingConfig.backgroundTracking = true
-ObjectTrackingConfig.bgTrackingDurationSeconds = 15f
-ObjectTrackingConfig.confidenceThreshold = 0.3f
+ObjectTrackingConfig.objectCodes = arrayOf("OBJ_001", "OBJ_002")
 ObjectTrackingConfig.validate()
-
-// Launch the object tracking AR session
-val intent = Intent(this, ObjectTrackingActivity::class.java)
-intent.putExtra(ObjectTrackingActivity.EXTRA_OBJECT_CODES, ObjectTrackingConfig.objectCodes)
-startActivity(intent)
+startActivity(Intent(this, ObjectTrackingActivity::class.java))
 ```
 
 ---
 
-## Authentication & Token Lifetime
+## Authentication and Token Lifetime
 
-Authentication is handled for you. The live M2M token is a short-lived (5-minute) JWT, and the SDK refreshes it transparently:
-
-- Every authenticated request asks for a current token, so no token is ever held by value.
-- Expiry is read from the API response, falling back to the JWT's own `exp` claim; an unreadable expiry is treated as already expired.
-- Renewal happens ahead of expiry, with the lead time adapted to the token's actual lifetime.
-- Concurrent callers share a single re-authentication rather than stampeding the token endpoint.
-- A request rejected with **HTTP 401** is retried once with a fresh token; a recovered request reports no failure at all.
-
-Hosts that call the MultiSet API themselves can borrow the same machinery via `MultiSetSDK.currentToken()`.
+Authentication is automatic. The M2M token lives 5 minutes and the SDK renews it ahead of expiry; concurrent requests share one renewal, and a request rejected with HTTP 401 is retried once with a fresh token, reporting no failure if that succeeds. Calling `initialize` again with the same account, for example after a rotation, sends no request while the token is valid. Hosts that call the MultiSet API themselves can use `MultiSetSDK.currentToken()`.
 
 ---
 
 ## Error Handling
 
-Session failures are delivered as `MultiSetError` rather than free-form strings:
-
-| Field | Description |
-|-------|-------------|
-| `kind` | `SERVER`, `AUTH`, `NETWORK`, or `TRANSIENT` |
-| `message` | Human-readable text, preferring the server's own `message` field |
-| `statusCode` | HTTP status code when the failure came from the API |
-| `rawBody` | Unparsed API error body, for logging |
-| `isTransient` | True for failures a retry may fix on its own |
+Session failures arrive as `MultiSetError`: `kind`, `message` (the server's own when it sent one), `statusCode`, `rawBody` and `isTransient`.
 
 | Kind | Meaning |
 |------|---------|
 | `SERVER` | The API rejected the request; retrying without a config change won't help |
 | `AUTH` | Credentials were rejected (401/403) |
 | `NETWORK` | The API was unreachable |
-| `TRANSIENT` | Scan-time failure (no pose, low confidence, frame capture) — expected to recur |
+| `TRANSIENT` | No pose, low confidence or no frame: expected to recur |
 
 ```kotlin
 session.onLocalizationFailure = { error ->
@@ -681,193 +382,249 @@ session.onLocalizationFailure = { error ->
         MultiSetError.Kind.AUTH      -> promptForCredentials()
         MultiSetError.Kind.NETWORK   -> showOfflineBanner()
         MultiSetError.Kind.SERVER    -> Log.e(TAG, "${error.statusCode}: ${error.message}")
-        MultiSetError.Kind.TRANSIENT -> Unit   // keep scanning
+        MultiSetError.Kind.TRANSIENT -> Unit
     }
 }
 ```
 
 ---
 
-## Localization Result
+## Results
 
-Successful localization provides a `LocalizationResult` object via `onLocalizationSuccess`:
+| `LocalizationResult` | Description |
+|----------------------|-------------|
+| `mapCode`, `mapCodes` | The localized map, and every map code returned |
+| `position`, `rotation` | Pose in AR world space (XYZ, quaternion XYZW) |
+| `confidence` | Confidence score, if available |
+| `geoCoordinates` | Latitude, longitude, altitude (with `includeGeoCoordinatesInResponse`) |
+| `geoPose` | The whole geographic pose: position, orientation and frame, e.g. `WGS-84` / `Y-Up-ENU` |
 
-| Field | Description |
-|-------|-------------|
-| `mapCode` | Code of the localized map |
-| `mapCodes` | List of all map codes returned |
-| `position` | XYZ coordinates in AR world space |
-| `rotation` | Quaternion (XYZW) orientation |
-| `confidence` | Localization confidence score (if available) |
-| `geoCoordinates` | Latitude, longitude, altitude (if requested) |
+The geographic fields need a geo-referenced map. Every localization response is logged as the server sent it, under the `MultiSetSDK` tag (`Localization response:`).
 
----
-
-## Object Tracking Result
-
-Successful object tracking provides an `ObjectTrackingResult` object via `onObjectTrackingSuccess`:
-
-| Field | Description |
-|-------|-------------|
-| `objectCode` | Code of the tracked object |
-| `objectCodes` | List of all object codes returned |
-| `position` | XYZ coordinates of the object in AR world space |
-| `rotation` | Quaternion (XYZW) orientation of the object |
-| `confidence` | Tracking confidence score |
+| `ObjectTrackingResult` | Description |
+|------------------------|-------------|
+| `objectCode`, `objectCodes` | The tracked object, and every object code returned |
+| `position`, `rotation` | Object pose in AR world space |
+| `confidence` | Confidence score |
 
 ---
 
 ## Advanced: Raw Stateless APIs
 
-When you want direct control over frame selection instead of a managed session:
+For direct control over frame selection, without a session:
 
 ```kotlin
 val single:  LocalizationResult   = MultiSetSDK.localizeSingleFrame(frame)
 val vps2:    LocalizationResult   = MultiSetSDK.localizeSingleFrame(frame, QueryMode.VPS2)
-val multi:   LocalizationResult   = MultiSetSDK.localizeMultiFrame(listOf(f1, f2, f3, f4))
+val multi:   LocalizationResult   = MultiSetSDK.localizeMultiFrame(listOf(f1, f2, f3, f4), QueryMode.VPS2)
 val tracked: ObjectTrackingResult = MultiSetSDK.trackObjects(frame)
 ```
 
-These are `suspend` functions that perform one request and return; scheduling, retry and gating are yours to manage.
+Each `suspend` call sends one request; scheduling, retry and gating are yours. The localization calls send the configured hints, and the GPS hint while `enableGeoHint` is on.
 
 ---
 
 ## Advanced: 3D Mesh Loading
 
-Mesh download is a two-step signed-URL flow — the `meshLink` returned by the API is a storage key, not a URL. `MeshRepository` handles both steps and carries its own token provider:
-
 ```kotlin
 val meshes = MultiSetSDK.meshRepository()
 
-// Map mesh, with the pose relative to the localized map
-val map: MapMeshResult? = meshes.loadMapMesh(result.mapCode)
-
-// Object mesh
-val meta = meshes.fetchObjectMeshMetadata(objectCode)
+val map: MapMeshResult? = meshes.loadMapMesh(result.mapCode)    // map mesh and its pose
+val meta = meshes.fetchObjectMeshMetadata(objectCode)          // object mesh
 val bytes: ByteArray = meshes.downloadMesh(meta.fileUrl!!)
 ```
 
-`MapMeshResult` carries `mapId`, the GLB `meshBytes`, and `localPosition` / `localRotation` for placing the mesh relative to the localized map.
+`MapMeshResult` carries `mapId`, the GLB `meshBytes`, and `localPosition` / `localRotation`. Place the mesh as a child of a node at the localization pose. For a MapSet member, the local pose is the member's offset from the set's origin, already in the right-handed AR frame.
 
-In the sample app, a localized map mesh appears with a radial reveal animation alongside a gizmo at the result pose, while tracked object meshes are rendered on an invisible anchor node with an animated outline.
+If you reuse the sample's renderers (`ar/MeshRenderer`, `ar/ObjectMeshRenderer`):
 
-If you reuse the sample's renderers (`ar/MeshRenderer`, `ar/ObjectMeshRenderer`), keep these in mind:
-
-- **Materials are compiled for Sceneform's Filament (1.57.1).** The sources are in `app/src/main/assets/materials/*.mat` and the compiled files the app loads are in `app/src/main/res/raw/*.filamat`. After editing a `.mat`, recompile it with `matc` from the Filament 1.57.1 release, using the command in the file's header. A `.filamat` built with any other Filament version will not load.
-- **Call the renderers every frame.** From your scene update listener, call `MeshRenderer.onFrame(cameraWorldPosition)`, passing `null` while ARCore isn't tracking. For object tracking, call `ObjectMeshRenderer.onFrame()`. When the scene goes away, call `MeshRenderer.release()`.
-- **Draw the camera feed first when showing object outlines.** The outline hides the inside of the object with a depth-only occluder. Sceneform draws its camera feed last by default, so the camera image would be hidden inside the object's outline and that area would show black. Set `arSceneView.cameraStream.renderPriority = Renderable.RENDER_PRIORITY_FIRST`, as `ObjectTrackingActivity` does.
+- Call `MeshRenderer.onFrame(cameraWorldPosition)` every frame (`null` while not tracking) and `release()` on teardown; call `ObjectMeshRenderer.onFrame()` every frame.
+- For object outlines, draw the camera feed first: `arSceneView.cameraStream.renderPriority = Renderable.RENDER_PRIORITY_FIRST`.
+- The materials are compiled for Sceneform's Filament 1.57.1. After editing a `.mat` in `app/src/main/assets/materials/`, recompile it with `matc` from that release, using the command in the file's header.
 
 ---
 
-## AR Activities
+## Map Scanning (Non-LiDAR)
 
-The AR activities live in the **sample app**, not the SDK — they are reference implementations you can copy or replace.
+The SDK records a new map from camera frames, plus depth when the device has it, packages it as `MappingData.zip`, keeps it as a draft and uploads it to your account. `MultiSetSDK.mapping` (`MultiSetMapping`) has the same shape as the iOS SDK's, and your runtime supplies the camera through `MultiSetMappingSource`.
 
-### Localization Activity (`MultiSetLocalizationActivity`)
+`MultiSetSDK.mapping` needs `initialize()` to have run (it throws `IllegalStateException` before that); scanning needs no authentication, uploading does. `release()` drops the instance, deletes an unsaved scan and stops uploads in progress.
 
-Handles both single-frame and multi-frame localization modes. The mode is passed at launch time.
+### The host side
 
-#### Single-Frame Mode
-
-- Single-image localization
-- Quick position estimation
-- Lower latency
-- Supports VPS-1 / VPS-2 query mode selection
-
-#### Multi-Frame Mode
-
-- Multi-image localization for higher accuracy
-- Captures frames at configurable intervals
-- Always runs VPS-1
-
-**Launch:**
 ```kotlin
-val intent = Intent(this, MultiSetLocalizationActivity::class.java)
-intent.putExtra(
+interface MultiSetMappingSource {
+    val depthSupported: Boolean                                  // the AR session runs a depth API
+    val locationProvider: MappingLocationProvider? get() = null  // geo-tags the map
+    fun startPreview()
+    fun startRecording()
+    fun pause()                                                  // the SDK has stopped using the source
+    suspend fun acquireRGBFrame(): MappingRGBFrame?              // the latest frame's pose; null while not tracking
+}
+
+interface MappingRGBFrame {
+    val position: Vec3                                           // raw AR camera pose
+    val rotation: Quat
+    val timestamp: Double                                        // AR frame clock, seconds
+    val hasDepth: Boolean
+    fun readImage(): MappingCameraImage?                         // that same frame's pixels; null skips it
+}
+```
+
+```kotlin
+mapping.reportTrackingSample(MappingTrackingSample(trackingState, position, timestamp, featurePointCount, pixelIntensity))
+mapping.reportSourceInterrupted()      // from onPause, before super.onPause()
+mapping.reportSourceFailure(message)   // the AR session failed
+```
+
+- **Pose first, pixels later.** The SDK calls `readImage()` on the main thread, straight after `acquireRGBFrame()`, and only for a frame that passes every check (tracking settled, 5 cm or 5° of movement, depth when the scan needs it). Return that frame's pixels, or `null` if the runtime has moved on. Build the image with `MappingCameraImage.copyOf(cameraImage, intrinsics, depthImage)`, and pass the raw pose and the image's own intrinsics.
+- **Report one tracking sample per AR update.** Frames are taken only while the latest sample is `NORMAL`, and a tracking loss or pose jump deletes the frames from the second before it.
+- **Depth is all-or-none.** When `depthSupported` is true, the scan waits up to 2 s for a frame with depth; if one arrives, every kept frame must carry depth, otherwise the scan is RGB-only.
+
+### Running a scan
+
+```kotlin
+val mapping = MultiSetSDK.mapping
+mapping.setSource(arMappingSource)
+lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { mapping.scan.collect { render(it) } } }
+
+recordButton.setOnClickListener { mapping.startScan() }
+stopButton.setOnClickListener {
+    lifecycleScope.launch {
+        when (mapping.stopScan()) {
+            MappingStopOutcome.PACKAGED -> showNameCard()
+            MappingStopOutcome.DISCARDED_TOO_SHORT -> showTooShort()
+            MappingStopOutcome.FAILED, MappingStopOutcome.NOT_RECORDING -> Unit   // scan.phase says why
+        }
+    }
+}
+saveButton.setOnClickListener { lifecycleScope.launch { mapping.saveDraft(name) } }   // at least 3 characters
+
+override fun onResume() { super.onResume(); mapping.beginPreview() }
+override fun onPause() { mapping.reportSourceInterrupted(); super.onPause() }
+```
+
+`MultiSetMapping` outlives the activity. In `onDestroy`, call `endPreview()` and `setSource(null)` only if the attached source is still this screen's, since a newer screen may have attached its own. Call `MultiSetMapping` from the main thread.
+
+| `scan.phase` | What happens |
+|--------------|--------------|
+| `Idle` | Nothing is recording |
+| `Preparing` | Checks for 1.5 GB of free space and waits up to 15 s for a `NORMAL` tracking sample |
+| `Mapping` | Keeps a frame every 250 ms; stops by itself at 10 min |
+| `Zipping` | Packages the scan (`packagingProgress` 0 to 1) |
+| `Finished` | `MappingData.zip` is ready for `saveDraft(name)` |
+| `Failed(failure)` | Nothing was kept; `failure.reason` and `failure.message` say why. `acknowledgeFailure()` returns to `Idle` |
+
+A scan shorter than 10 s is discarded. An interruption ends a scan of 10 s or more as it stood and fails a shorter one; a scan never continues across an interruption. While recording, the state also reports saved, blurred and discarded frame counts, a motion warning and a tracking level for your guidance UI.
+
+### Drafts and upload
+
+```kotlin
+combine(mapping.drafts, mapping.uploads, ::Pair).collect { (drafts, uploads) -> render(drafts, uploads) }
+
+mapping.upload(draft.id)                 // also "Try again" and "Retry now"
+mapping.deleteDraft(draft.id)            // cancels an upload in progress
+mapping.dismissUploadFailure(draft.id)
+override fun onResume() { super.onResume(); mapping.resumeUploads() }
+```
+
+`drafts` lists the saved scans not yet uploaded, newest first. `uploads` maps a draft id to its `MappingUploadState`:
+
+| State | Meaning |
+|-------|---------|
+| *(no entry)* | Idle. A successful upload removes the draft and its files |
+| `Preparing` / `Uploading(fraction)` | Getting an upload ticket / sending `MappingData.zip` |
+| `Waiting(reason)` | Queued: a retry countdown, waiting for `resumeUploads()`, or `"Authenticate the SDK to upload"` |
+| `Failed(message)` | Not retried on its own; `upload()` tries again |
+
+- Network errors, HTTP 408, 429 and 5xx are retried 5 times (10 to 160 s apart); after that the draft waits for `resumeUploads()`. A retry re-uploads to the map the first attempt created, so no second map is made.
+- Uploads use the SDK's M2M token. Refused credentials leave the draft waiting until the next successful authentication.
+- **Uploads run in your app's process.** There is no background service: if the process dies or `release()` is called, the queue survives and the upload restarts from the beginning after the next authentication. The SDK calls `resumeUploads()` after each successful `initialize()`; call it from `onResume` too.
+
+Scans are stored under `Context.noBackupFilesDir/multiset/mapping/`, so Auto Backup never copies them:
+
+```
+DraftMapList.json
+MapUploadQueue.json
+MappingData/<session-id>/
+├── RawData/
+│   ├── CameraIntrinsics.json
+│   ├── RGB/Rgb_<ts>.jpg            960×720 JPEG
+│   ├── Depth/Depth_<ts>.exr        256×192 float metres (depth scans only)
+│   └── Pose/CameraPose_<ts>.json
+└── MappingData.zip
+```
+
+---
+
+## Sample App (`:app`)
+
+The AR screens are reference implementations to copy or replace. Their run-status UI is ported from the iOS SDK: a capture overlay with a frame count, a server-wait overlay, and a round status card for every run, background runs included. A return from the background hides the map, gizmo and outlines until they are re-aligned.
+
+**Localization** (`MultiSetLocalizationActivity`):
+
+```kotlin
+startActivity(Intent(this, MultiSetLocalizationActivity::class.java).putExtra(
     MultiSetLocalizationActivity.EXTRA_LOCALIZATION_MODE,
-    LocalizationMode.MULTI_FRAME.name  // or SINGLE_FRAME
-)
-startActivity(intent)
+    LocalizationMode.SINGLE_FRAME.name   // the default; or MULTI_FRAME
+))
 ```
 
-Both modes support:
-- Localization animation with visual feedback
-- Automatic and manual localization triggers
-- Background localization
-- Relocalization on tracking loss
-- 3D mesh visualization with radial reveal
-- False-positive rejection
-- GPS-assisted localization
+Single- or multi-frame with VPS-1 / VPS-2; automatic, manual and background localization; relocalization after a break; the map mesh with a radial reveal and a toggle (in a MapSet, each localized map adds its own mesh); false-positive rejection; the GPS hint.
+
+**Object tracking** (`ObjectTrackingActivity`): pass codes with `EXTRA_OBJECT_CODES` or through `ObjectTrackingConfig`. Each tracked object gets an animated outline on its own anchor; Reset clears them and re-arms tracking.
+
+**Map scanning:** a Mapping card on the home screen opens "Before you scan" tips (`MappingInstructionsActivity`), the landscape scan screen (`MapScanActivity`) with a timer, tracking guidance and live coverage points, and Draft Maps (`DraftMapsActivity`) with thumbnails and upload status. `mapping/ArMappingSource` implements `MultiSetMappingSource` over ARCore.
 
 ---
 
-### Object Tracking Activity (`ObjectTrackingActivity`)
+## XREAL Aura sample (`:xreal-aura-vps`)
 
-Dedicated AR activity for detecting and tracking pre-registered physical objects. Once an object is tracked, its 3D mesh is fetched from the platform and placed in the AR scene with an animated outline.
+The same SDK on Android XR glasses, installed as `com.multiset.aura`. Jetpack XR gives no camera image or intrinsics, so `frame/AuraFrameSource` builds each `CameraFrame` from a Camera2 still (the whole frame, sent at 1280 × 720 with `imageLongSide(1280)`), the head pose at mid-exposure and a calibration profile. SceneCore anchors the result in the room.
 
-**Launch:**
-```kotlin
-// Option A: pass codes directly via Intent
-val objectCodes = arrayOf("OBJ_001", "OBJ_002")
-val intent = Intent(this, ObjectTrackingActivity::class.java)
-intent.putExtra(ObjectTrackingActivity.EXTRA_OBJECT_CODES, objectCodes)
-startActivity(intent)
+| Area | What the sample does |
+|------|----------------------|
+| Map / MapSet localization | Single- and multi-frame; the map mesh with a radial reveal, a gizmo and a mesh toggle; in a MapSet each localized map adds its own mesh |
+| Object tracking | An outline on each tracked object, one anchor per object |
+| Settings | Every session option, persisted, and a Map / MapSet switch when both codes are set |
 
-// Option B: configure via ObjectTrackingConfig (codes are read automatically)
-ObjectTrackingConfig.objectCodes = arrayOf("OBJ_001", "OBJ_002")
-ObjectTrackingConfig.validate()
-startActivity(Intent(this, ObjectTrackingActivity::class.java))
+Map scanning and the GPS hint are not part of this sample.
+
+- **Requires** an Android XR device with a world-facing camera, such as XREAL Aura, on Android 14+. Elsewhere it shows a "needs Android XR" message.
+- **Credentials** come from the same `multiset.properties`; rebuild after editing it.
+- **Permissions:** `CAMERA`, `android.permission.HEAD_TRACKING` and `android.permission.SCENE_UNDERSTANDING_COARSE`, each asked from a card in the panel.
+- **Full Space** is needed for 3D content; in Home Space the sample asks you to switch. Jetpack XR is pinned (`compose` 1.0.0-beta01; `runtime`, `scenecore`, `arcore` 1.0.0-rc01; `extensions-xr` 1.1.0).
+- **Recovery:** the sample re-localizes and re-tracks itself when head tracking resumes, so it turns off the sessions' own `relocalization` and `restartTracking`.
+
+```bash
+./gradlew :xreal-aura-vps:installDebug      # glasses or puck connected over adb
 ```
-
-**Features:**
-- Automatic tracking on session start (configurable)
-- Manual tracking trigger via on-screen button
-- Animated outline rendered over each tracked object mesh
-- Background tracking with configurable retry interval
-- Auto-restart on AR tracking loss
-- Close confirmation dialog
 
 ---
 
 ## Permissions
 
-The core SDK's manifest declares only `INTERNET`. Your app declares what its own runtime needs:
-
 | Permission | Purpose | Declared by |
 |------------|---------|-------------|
 | `INTERNET` | API communication | SDK (merged in) |
-| `CAMERA` | AR camera access | Your app |
-| `ACCESS_FINE_LOCATION` | GPS for geo hint (optional) | Your app |
+| `CAMERA` | AR camera | Your app |
+| `ACCESS_FINE_LOCATION` | GPS hint, and geo-tagging scanned maps (optional) | Your app |
+| `ACCESS_COARSE_LOCATION` | Geo-tagging a scan with approximate location only (optional) | Your app |
 
-The sample app also declares `<uses-feature android:name="android.hardware.camera.ar" android:required="true" />`. Location permission is only required if using GPS-assisted localization.
+`:app` also requires the `android.hardware.camera.ar` feature.
 
 ---
 
 ## Building
 
 ```bash
-# Sample app (ARCore device required to run AR)
-./gradlew :app:assembleDebug
-./gradlew :app:installDebug
-
-# Sample app unit tests
+./gradlew :app:installDebug                  # ARCore phone
+./gradlew :xreal-aura-vps:installDebug       # Android XR glasses
 ./gradlew :app:testDebugUnitTest
-
-# Release build
-./gradlew :app:assembleRelease
+./gradlew :app:assembleRelease :xreal-aura-vps:assembleRelease
 ```
 
-The SDK itself ships prebuilt as `app/libs/multiset-sdk.aar` — this repository contains no
-SDK sources, so there is nothing to compile for it. To move to a newer SDK build, replace
-that file and rebuild.
-
----
-
-## Further Reading
-
-- **API documentation:** https://developer.multiset.ai/docs
-- The sample app under `app/src/main/java/com/multiset/xr/` is the reference integration —
-  `ar/ArFrameSource.kt` shows the ARCore→SDK boundary, and `ui/` shows session wiring.
+The SDK ships prebuilt as `app/libs/multiset-sdk.aar`, and both samples build against it. To move to a newer SDK, replace that file and rebuild.
 
 ---
 

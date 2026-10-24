@@ -7,6 +7,7 @@ Redistribution in source or binary forms must retain this notice.
 package com.multiset.xr.config
 
 import android.content.Context
+import androidx.core.content.edit
 import com.multiset.sdk.model.QueryMode
 
 /**
@@ -64,6 +65,27 @@ object ConfigStore {
     private const val O_CONF_THRESHOLD = "obj_confidenceThreshold"
     private const val O_SHOW_ALERTS = "obj_showAlerts"
     private const val O_IMAGE_QUALITY = "obj_imageQuality"
+
+    // Mapping keys hold the user's own answers, not settings, so the settings Reset keeps them
+    private const val MAPPING_PREFIX = "map_"
+    private const val M_HIDE_INSTRUCTIONS = "map_hideInstructions"
+    private const val M_LOCATION_ASKED = "map_locationAsked"
+
+    /** Whether the user asked not to see the scanning instructions before a scan again. */
+    fun isMappingInstructionsHidden(context: Context): Boolean =
+        prefs(context).getBoolean(M_HIDE_INSTRUCTIONS, false)
+
+    fun setMappingInstructionsHidden(context: Context, hidden: Boolean) {
+        prefs(context).edit { putBoolean(M_HIDE_INSTRUCTIONS, hidden) }
+    }
+
+    /** Whether the scan screen has already asked for the location permission once. */
+    fun isMappingLocationAsked(context: Context): Boolean =
+        prefs(context).getBoolean(M_LOCATION_ASKED, false)
+
+    fun setMappingLocationAsked(context: Context, asked: Boolean) {
+        prefs(context).edit { putBoolean(M_LOCATION_ASKED, asked) }
+    }
 
     /** True once values have been persisted at least once. */
     fun hasSavedConfig(context: Context): Boolean =
@@ -162,19 +184,23 @@ object ConfigStore {
         }.apply()
     }
 
-    /** Reset both config objects to defaults and persist the cleared state. */
     // A stored name can outlive the enum constant it refers to; fall back rather than crash.
     private fun decodeQueryMode(stored: String?, fallback: QueryMode): QueryMode =
         stored?.let { runCatching { QueryMode.valueOf(it) }.getOrNull() } ?: fallback
 
+    /** Reset both config objects to defaults and persist the cleared state; mapping answers are kept. */
     fun resetToDefaults(context: Context) {
         // Preserve runtime objectCodes (sourced from BuildConfig, not the settings UI).
         val objectCodes = ObjectTrackingConfig.objectCodes
         LocalizationConfig.resetToDefaults()
         ObjectTrackingConfig.resetToDefaults()
         ObjectTrackingConfig.objectCodes = objectCodes
-        prefs(context).edit().clear().apply()
+        val prefs = prefs(context)
+        prefs.edit { keysClearedByReset(prefs.all.keys).forEach(::remove) }
     }
+
+    internal fun keysClearedByReset(keys: Collection<String>): List<String> =
+        keys.filterNot { it.startsWith(MAPPING_PREFIX) }
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

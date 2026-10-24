@@ -96,18 +96,13 @@ class SettingsDialogFragment : DialogFragment() {
         environmentContainer.removeAllViews()
 
         with(LocalizationConfig) {
-            if (!isMultiFrame) {
-                dropdownRow(
-                    mapContainer, "Query Mode (single-frame)", QUERY_MODE_LABELS,
-                    queryMode, QUERY_MODE_DESCRIPTIONS
-                ) { queryMode = it }
-            }
+            dropdownRow(mapContainer, "Query Mode", QUERY_MODE_LABELS, queryMode, QUERY_MODE_DESCRIPTIONS) { queryMode = it }
             switchRow(mapContainer, "Auto Localize", autoLocalize) { autoLocalize = it }
             gatedSliderRow(
                 mapContainer,
                 switchLabel = "Background Localization", switchInitial = backgroundLocalization,
                 switchSetter = { backgroundLocalization = it },
-                sliderLabel = "Background Interval", from = 15f, to = 180f, step = 1f,
+                sliderLabel = "Background Interval", from = 10f, to = 180f, step = 1f,
                 sliderInitial = backgroundLocalizationIntervalSeconds, format = { "${it.toInt()} s" },
             ) { backgroundLocalizationIntervalSeconds = it }
             switchRow(mapContainer, "Relocalization (on tracking loss)", relocalization) { relocalization = it }
@@ -440,7 +435,7 @@ class SettingsDialogFragment : DialogFragment() {
         private val QUERY_MODE_DESCRIPTIONS = mapOf(
             QueryMode.VPS1 to "Standard matching. Fastest response, best for well-mapped areas.",
             QueryMode.VPS2 to "Deep search. Slower, but recovers a pose in harder or sparsely " +
-                "mapped areas. Single-frame only — multi-frame localization always uses VPS-1.",
+                "mapped areas. Single-frame and multi-frame alike.",
         )
 
         private const val ARG_MULTI_FRAME = "multiFrame"

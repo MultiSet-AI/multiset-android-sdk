@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright (c) 2026 MultiSet AI. All rights reserved.
+Licensed under the MultiSet License. You may not use this file except in compliance with the License. and you can't re-distribute this file without a prior notice
+For license details, visit www.multiset.ai.
+Redistribution in source or binary forms must retain this notice.
+-->
+<resources>
+    <string name="run_status_working">Checking position</string>
+    <string name="run_status_capturing">Capturing images</string>
+    <string name="run_status_uploading">Uploading images</string>
+    <string name="run_status_succeeded">Position confirmed</string>
+    <string name="run_status_failed">Position check failed</string>
+    <string name="mesh_loading_map">Loading the map mesh…</string>
+    <string name="mesh_loading_object">Loading the object mesh…</string>
+    <string name="mesh_loading_in_progress">in progress</string>
+    <string name="capture_title_localization">Hold steady and scan your surroundings</string>
+    <string name="capture_title_object">Hold steady on the object</string>
+    <string name="gps">GPS</string>
+    <string name="recovery_waiting">Tracking lost \u00b7 waiting to realign</string>
+    <string name="recovery_realigning">Realigning with the map…</string>
+</resources>

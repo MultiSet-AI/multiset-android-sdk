@@ -15,11 +15,15 @@ import com.multiset.xr.R
 /**
  * Drives the bottom-left mesh chip on both AR screens: it reports taps and renders its own
  * on/off styling, and the caller owns what showing and hiding a mesh actually means.
+ * The map scan screen reuses it for its point display, with [describe] naming the state.
  *
  * Offer it only once a mesh is in the scene — a control that hides nothing reads as broken.
  */
 class MeshToggle(
     private val button: MaterialButton,
+    private val describe: (on: Boolean) -> String = { on ->
+        button.context.getString(if (on) R.string.mesh_shown else R.string.mesh_hidden)
+    },
     private val onChange: (Boolean) -> Unit,
 ) {
 
@@ -53,7 +57,6 @@ class MeshToggle(
         button.backgroundTintList = ColorStateList.valueOf(fill)
         button.setTextColor(content)
         button.iconTint = content
-        button.contentDescription =
-            context.getString(if (isOn) R.string.mesh_shown else R.string.mesh_hidden)
+        button.contentDescription = describe(isOn)
     }
 }

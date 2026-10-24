@@ -21,9 +21,10 @@ Redistribution in source or binary forms must retain this notice.
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Single-Frame Capture Overlay (shown during single-frame capture) -->
+    <!-- Capture overlay: only while frames are taken for a run the user is waiting on.
+         Declared before the controls so Close and the status card stay reachable over it. -->
     <FrameLayout
-        android:id="@+id/singleFrameOverlay"
+        android:id="@+id/captureOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CC000000"
@@ -38,53 +39,15 @@ Redistribution in source or binary forms must retain this notice.
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:padding="24dp">
 
-            <ProgressBar
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:indeterminateTint="@color/ar_brand" />
-
-            <TextView
-                android:id="@+id/singleFrameStatusText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/capturing"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
-
-        </LinearLayout>
-
-    </FrameLayout>
-
-    <!-- Multi-Frame Capture Overlay (shown during multi-frame capture) -->
-    <FrameLayout
-        android:id="@+id/multiFrameOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#CC000000"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <!-- Animation Container -->
             <FrameLayout
                 android:id="@+id/animationContainer"
                 android:layout_width="200dp"
                 android:layout_height="100dp"
-                android:layout_marginBottom="20dp">
+                android:layout_marginBottom="24dp">
 
-                <!-- Background AR Image -->
                 <ImageView
                     android:id="@+id/bgArImage"
                     android:layout_width="match_parent"
@@ -94,7 +57,6 @@ Redistribution in source or binary forms must retain this notice.
                     android:src="@drawable/bg_ar"
                     android:contentDescription="@string/ar_background" />
 
-                <!-- Animated Phone Image -->
                 <ImageView
                     android:id="@+id/phoneImage"
                     android:layout_width="58dp"
@@ -106,35 +68,33 @@ Redistribution in source or binary forms must retain this notice.
 
             </FrameLayout>
 
-            <!-- Instruction Text -->
             <TextView
-                android:id="@+id/instructionText"
+                android:id="@+id/captureTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="@string/localization_instruction"
-                android:textColor="@color/ar_on_mid"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:lineSpacingExtra="4dp" />
+                android:text="@string/capture_title_localization"
+                android:textColor="@color/ar_on"
+                android:textSize="17sp"
+                android:textStyle="bold" />
 
-            <!-- Status Text -->
             <TextView
-                android:id="@+id/multiFrameStatusText"
+                android:id="@+id/captureStatusText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/capturing_frames"
-                android:textColor="@android:color/white"
+                android:layout_marginTop="8dp"
+                android:fontFamily="monospace"
+                android:gravity="center"
+                android:textColor="@color/ar_on_mid"
                 android:textSize="14sp" />
 
         </LinearLayout>
 
     </FrameLayout>
 
-    <!-- API Loading Overlay (shown while waiting for API response) -->
+    <!-- Server wait overlay: after capture, while a run the user is waiting on is with the server -->
     <FrameLayout
-        android:id="@+id/apiLoadingOverlay"
+        android:id="@+id/serverWaitOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CC000000"
@@ -154,52 +114,101 @@ Redistribution in source or binary forms must retain this notice.
             <ProgressBar
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:indeterminateTint="@color/ar_brand" />
+                android:indeterminateTint="@color/ar_accent" />
 
             <TextView
+                android:id="@+id/serverWaitText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="@string/localizing"
-                android:textColor="@android:color/white"
+                android:gravity="center"
+                android:paddingHorizontal="24dp"
+                android:textColor="@color/ar_on_mid"
                 android:textSize="16sp" />
 
         </LinearLayout>
 
     </FrameLayout>
 
-    <!-- Status Overlay (top) - Hidden by default -->
+    <!-- Top left: the status chip, then GPS and the run status card, which never move each other -->
     <LinearLayout
-        android:id="@+id/statusOverlay"
-        android:layout_width="0dp"
+        android:id="@+id/topLeftColumn"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="14dp"
         android:layout_marginTop="20dp"
         android:layout_marginEnd="10dp"
-        android:background="@drawable/bg_ar_chip"
         android:orientation="vertical"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="10dp"
-        android:visibility="gone"
+        app:layout_constrainedWidth="true"
         app:layout_constraintEnd_toStartOf="@id/topActions"
+        app:layout_constraintHorizontal_bias="0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintWidth_default="wrap">
+        app:layout_constraintTop_toTopOf="parent">
 
-        <TextView
-            android:id="@+id/statusText"
+        <LinearLayout
+            android:id="@+id/statusOverlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/tracking_initializing"
-            android:textAppearance="@style/TextAppearance.MultiSetSDK.ArStatus" />
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_ar_chip"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="10dp"
+            android:visibility="gone">
 
-        <TextView
-            android:id="@+id/localizationStatus"
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tracking_initializing"
+                android:textAppearance="@style/TextAppearance.MultiSetSDK.ArStatus" />
+
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="@string/ready_to_localize"
-            android:textAppearance="@style/TextAppearance.MultiSetSDK.ArMeta" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/gpsIndicator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/gps_indicator_background"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:visibility="gone">
+
+                <View
+                    android:id="@+id/gpsStatusDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/gps_dot_inactive" />
+
+                <TextView
+                    android:id="@+id/gpsStatusText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/gps"
+                    android:textColor="@color/ar_on"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <com.multiset.xr.ui.runstatus.RunStatusCardView
+                android:id="@+id/runStatusCard"
+                android:layout_width="36dp"
+                android:layout_height="36dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
@@ -217,7 +226,18 @@ Redistribution in source or binary forms must retain this notice.
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Localize Button (bottom right) - Always visible -->
+    <!-- In the mesh toggle's place while a map mesh downloads and is built -->
+    <com.multiset.xr.ui.MeshLoadingBarView
+        android:id="@+id/meshLoadingBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="30dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Localize Button (bottom right): hidden under a run's overlay, disabled through a background run -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/localizeButton"
         style="@style/Widget.MultiSetSDK.Fab.Capture"
@@ -231,7 +251,7 @@ Redistribution in source or binary forms must retain this notice.
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Top-right actions: Reset appears once there is something to reset, then Close.
-         Both live in one row so the status chip can end against it while Reset is gone. -->
+         Both live in one row so the status column can end against it while Reset is gone. -->
     <LinearLayout
         android:id="@+id/topActions"
         android:layout_width="wrap_content"
@@ -263,57 +283,5 @@ Redistribution in source or binary forms must retain this notice.
             app:fabSize="mini" />
 
     </LinearLayout>
-
-    <!-- GPS Status Indicator -->
-    <LinearLayout
-        android:id="@+id/gpsIndicator"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="14dp"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/gps_indicator_background"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="10dp"
-        android:paddingTop="6dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="6dp"
-        android:visibility="gone"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/statusOverlay">
-
-        <!-- GPS Icon/Dot -->
-        <View
-            android:id="@+id/gpsStatusDot"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:background="@drawable/gps_dot_inactive" />
-
-        <!-- GPS Label -->
-        <TextView
-            android:id="@+id/gpsStatusText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="GPS"
-            android:textColor="@color/ar_on"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-    </LinearLayout>
-
-    <!-- Background Localization Progress (subtle line at bottom) -->
-    <com.google.android.material.progressindicator.LinearProgressIndicator
-        android:id="@+id/backgroundProgressIndicator"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:visibility="gone"
-        app:indicatorColor="@color/ar_brand"
-        app:trackColor="@android:color/transparent"
-        app:trackThickness="3dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -281,6 +281,81 @@ Redistribution in source or binary forms must retain this notice.
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- ── Mapping ── -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.MultiSetSDK.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_tile_mapping"
+                        android:contentDescription="@null"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_scan"
+                        app:tint="@color/mapping" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:text="@string/mapping_label"
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/mapping" />
+
+                    <TextView
+                        android:id="@+id/mappingDraftBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/rounded_badge_bg"
+                        android:paddingHorizontal="9dp"
+                        android:paddingVertical="4dp"
+                        android:textColor="@color/text_mid"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/mapping_body"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Meta" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/createMapButton"
+                    style="@style/Widget.MultiSetSDK.Button.Mapping"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/create_map" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/draftMapsButton"
+                    style="@style/Widget.MultiSetSDK.Button.Mapping.Outlined"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/draft_maps" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- ── Footer ── -->
         <TextView
             android:id="@+id/instructionsText"

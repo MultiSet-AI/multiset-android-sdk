@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.media.Image
 import android.util.Log
+import androidx.lifecycle.Lifecycle
 import com.google.ar.core.TrackingState
 import com.google.ar.sceneform.ux.ArFragment
 import com.multiset.sdk.camera.ImageProcessor
@@ -31,10 +32,26 @@ class ArFrameSource(
 
     companion object { private const val TAG = "ArFrameSource" }
 
+    // Frames up to here were taken before a trip to the background, of a place the device may have left.
+    private var framesStaleUpToNanos = Long.MIN_VALUE
+
+    override val isHostActive: Boolean
+        get() = arFragment.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+
+    /** Call from the activity's onPause, before super.onPause() pauses the AR session. */
+    fun markFramesStale() {
+        val latest = try { arFragment.arSceneView.arFrame?.timestamp } catch (e: Exception) { null } ?: return
+        framesStaleUpToNanos = maxOf(framesStaleUpToNanos, latest)
+    }
+
     override suspend fun acquire(): CameraFrame? = withContext(Dispatchers.Main) {
         val frame = try { arFragment.arSceneView.arFrame } catch (e: Exception) { null }
         if (frame == null) {
             Log.d(TAG, "acquire: no AR frame yet")
+            return@withContext null
+        }
+        if (frame.timestamp <= framesStaleUpToNanos) {
+            Log.d(TAG, "acquire: frame predates the return from the background")
             return@withContext null
         }
         val camera = frame.camera

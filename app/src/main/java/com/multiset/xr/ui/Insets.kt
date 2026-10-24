@@ -45,20 +45,31 @@ fun View.padForSystemBars(top: Boolean = false, bottom: Boolean = false) {
  * [extraBottom] is a lambda rather than a value because this listener owns the bottom margin and
  * re-runs on every inset pass: a caller whose clearance changes later re-dispatches insets instead
  * of assigning a margin that the next pass would overwrite.
+ *
+ * [sides] also clears the left and right insets, which a landscape screen needs for the
+ * navigation bar and the camera cutout.
  */
 fun View.marginForSystemBars(
     top: Boolean = false,
     bottom: Boolean = false,
+    sides: Boolean = false,
     extraBottom: () -> Int = { 0 },
 ) {
     val params = layoutParams as? ViewGroup.MarginLayoutParams ?: return
     val baseTopMargin = params.topMargin
     val baseBottomMargin = params.bottomMargin
+    val baseStartMargin = params.marginStart
+    val baseEndMargin = params.marginEnd
     ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
         val bars = insets.getInsets(BAR_TYPES)
+        val rtl = view.layoutDirection == View.LAYOUT_DIRECTION_RTL
         view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
             if (top) topMargin = baseTopMargin + bars.top
             if (bottom) bottomMargin = baseBottomMargin + bars.bottom + extraBottom()
+            if (sides) {
+                marginStart = baseStartMargin + if (rtl) bars.right else bars.left
+                marginEnd = baseEndMargin + if (rtl) bars.left else bars.right
+            }
         }
         insets
     }

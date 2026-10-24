@@ -26,6 +26,10 @@
     <color name="accent_ink">#67E8F9</color>
     <color name="accent_container">#0D2A33</color>
 
+    <!-- Mapping (amber) -->
+    <color name="mapping_container">#2E2110</color>
+    <color name="caution_ink">#FCD34D</color>
+
     <!-- Status -->
     <color name="success_ink">#5EEAD4</color>
     <color name="success_container">#0D2B27</color>

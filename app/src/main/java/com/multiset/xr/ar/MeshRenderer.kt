@@ -30,8 +30,9 @@ import com.google.android.filament.Material as FilamentMaterial
  * outward from the camera, holds for [MeshRevealTiming.DELAY_BETWEEN_LOOPS] seconds, then sweeps
  * again from wherever the camera is.
  *
- * Port of the iOS SDK's map-mesh reveal (`MeshRenderer.swift`, `MeshRevealAnimator.swift`). The host
- * calls [onFrame] once per AR frame and [release] when the scene goes away.
+ * Port of the iOS SDK's map-mesh reveal (`MeshRenderer.swift`, `MeshRevealAnimator.swift`). Holds one
+ * mesh per map, as iOS does: each map of a map set that is localized adds its mesh, and the others
+ * stay. The host calls [onFrame] once per AR frame and [release] when the scene goes away.
  */
 class MeshRenderer(private val context: Context) {
 
@@ -43,15 +44,19 @@ class MeshRenderer(private val context: Context) {
     }
 
     private var revealMaterial: FilamentMaterial? = null
-    private var mesh: RevealedMesh? = null
-    private var currentMapId: String? = null
+    private val meshes = LinkedHashMap<String, RevealedMesh>()
+    private val building = mutableMapOf<String, Int>()
+    private var nextBuild = 0
     private var meshVisible = true
-    private var loadGeneration = 0
+
+    /** A model is being built from a downloaded mesh. */
+    val isLoading: Boolean get() = building.isNotEmpty()
 
     /**
-     * Render the map mesh described by [meshResult] as a child of [parentNode].
+     * Render the map mesh described by [meshResult] as a child of [parentNode], beside any other
+     * map's mesh already shown.
      *
-     * If the same map is already shown, this restarts the reveal from [cameraWorldPosition]
+     * If the same map is already shown, this restarts its reveal from [cameraWorldPosition]
      * without re-loading the model.
      *
      * @param meshResult     bytes + pose from [com.multiset.sdk.mesh.MeshRepository].
@@ -65,66 +70,75 @@ class MeshRenderer(private val context: Context) {
         cameraWorldPosition: Vector3? = null,
         onComplete: (Boolean) -> Unit
     ) {
-        val shown = mesh
-        if (shown != null && currentMapId == meshResult.mapId) {
+        val mapId = meshResult.mapId
+        meshes[mapId]?.let { shown ->
             shown.restart(System.nanoTime(), cameraWorldPosition)
             onComplete(true)
             return
         }
 
-        val cacheFile = resolveCacheFile(meshResult.mapId, meshResult.meshBytes)
+        val cacheFile = resolveCacheFile(mapId, meshResult.meshBytes)
         if (cacheFile == null) {
-            Log.e(TAG, "Failed to resolve cache file for mapId=${meshResult.mapId}")
+            Log.e(TAG, "Failed to resolve cache file for mapId=$mapId")
             onComplete(false)
             return
         }
 
-        val generation = ++loadGeneration
+        val build = ++nextBuild
+        building[mapId] = build
         ModelRenderable.builder()
             .setSource(context, Uri.fromFile(cacheFile))
             .setIsFilamentGltf(true)
-            .setRegistryId(meshResult.mapId)
+            .setRegistryId(mapId)
             .build()
             .thenAccept { renderable ->
-                if (generation != loadGeneration) {
+                if (building[mapId] != build) {
                     onComplete(false)
                     return@thenAccept
                 }
-                removeMesh()
+                building.remove(mapId)
                 showMesh(renderable, meshResult, parentNode, cameraWorldPosition)
                 onComplete(true)
             }
             .exceptionally { throwable ->
                 Log.e(TAG, "Error loading GLB mesh: ${throwable.message}", throwable)
+                if (building[mapId] == build) building.remove(mapId)
                 onComplete(false)
                 null
             }
     }
 
-    /** Advances the reveal; [cameraWorldPosition] is null while ARCore is not tracking. */
+    /** Restarts the reveal of [mapId]'s mesh; false when that map has none shown. */
+    fun restartReveal(mapId: String, cameraWorldPosition: Vector3?): Boolean {
+        val shown = meshes[mapId] ?: return false
+        shown.restart(System.nanoTime(), cameraWorldPosition)
+        return true
+    }
+
+    /** Advances every reveal; [cameraWorldPosition] is null while ARCore is not tracking. */
     fun onFrame(cameraWorldPosition: Vector3?) {
-        mesh?.tick(System.nanoTime(), cameraWorldPosition)
+        val now = System.nanoTime()
+        meshes.values.forEach { it.tick(now, cameraWorldPosition) }
     }
 
     /**
-     * Shows or hides the map mesh. The choice is remembered, so a mesh loaded after the host
-     * hid them stays hidden rather than popping back in. The reveal keeps running either way,
+     * Shows or hides every map mesh. The choice is remembered, so a mesh loaded after the host
+     * hid them stays hidden rather than popping back in. The reveals keep running either way,
      * so unhiding lands mid-sweep rather than restarting.
      */
     fun setMeshVisible(visible: Boolean) {
         meshVisible = visible
-        mesh?.node?.isEnabled = visible
+        meshes.values.forEach { it.node.isEnabled = visible }
     }
 
-    /** Takes the mesh down and drops any load still in flight. The renderer stays usable. */
+    /** Takes every mesh down and drops any build still in flight. The renderer stays usable. */
     fun removeMesh() {
-        loadGeneration++
-        mesh?.destroy()
-        mesh = null
-        currentMapId = null
+        building.clear()
+        meshes.values.forEach { it.destroy() }
+        meshes.clear()
     }
 
-    fun hasMesh(): Boolean = mesh != null
+    fun hasMesh(): Boolean = meshes.isNotEmpty()
 
     /** [removeMesh] plus the compiled reveal material; call when the AR scene goes away. */
     fun release() {
@@ -157,8 +171,7 @@ class MeshRenderer(private val context: Context) {
         val reveal = revealInstance()
         val replaced = if (reveal != null) replaceMaterials(instance, reveal) else emptyList()
         val centre = cameraWorldPosition ?: node.worldPosition
-        mesh = RevealedMesh(node, instance, reveal, replaced, centre)
-        currentMapId = meshResult.mapId
+        meshes[meshResult.mapId] = RevealedMesh(node, instance, reveal, replaced, centre)
     }
 
     private fun revealInstance(): MaterialInstance? {

@@ -28,3 +28,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MultiSet SDK"
 include(":app")
+include(":xreal-aura-vps")

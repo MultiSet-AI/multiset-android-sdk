@@ -5,9 +5,7 @@
     <string name="info_text">To get ClientId and ClientSecret visit:\n<b><u> https://developer.multiset.ai/credentials</u></b></string>
 
     <string name="tracking_initializing">Starting AR…</string>
-    <string name="tracking_objects">Tracking objects…</string>
     <string name="start_tracking">Start tracking</string>
-    <string name="ready_to_localize">Ready to localize</string>
     <string name="reset_scene">Reset the pose reference</string>
     <string name="reset_tracking">Clear the outline and track again</string>
     <string name="mesh">Mesh</string>
@@ -28,14 +26,16 @@
     <string name="multi_frame">Multi frame</string>
     <string name="start_localization">Start localization</string>
     <string name="start_object_tracking">Start object tracking</string>
-    <string name="no_map_configured">No map configured. Set mapCode or mapSetCode in build.gradle.</string>
-    <string name="no_object_codes">No object codes configured. Add codes in build.gradle to enable tracking.</string>
+    <string name="no_map_configured">No map configured. Set mapCode or mapSetCode in multiset.properties.</string>
+    <string name="no_object_codes">No object codes configured. Add codes in multiset.properties to enable tracking.</string>
     <string name="footer_credentials">Get credentials at developer.multiset.ai/credentials</string>
 
+    <string name="mapping_label">Mapping</string>
+    <string name="mapping_body">Scan a space to build a new VPS map. Uploading needs the SDK to be authenticated.</string>
+    <string name="create_map">Create Map</string>
+    <string name="draft_maps">Draft Maps</string>
+
     <!-- Localization UI -->
-    <string name="localization_instruction">Look forward and\nmove device slowly</string>
-    <string name="localizing">Localizing…</string>
-    <string name="capturing_frames">Capturing frames…</string>
     <string name="ar_background">AR Background</string>
     <string name="phone_scanning">Phone scanning animation</string>
     <string name="localization_success">Localized</string>
@@ -45,7 +45,6 @@
     <string name="single_frame_localization">Single Frame Localization</string>
     <string name="multi_frame_localization">Multi Frame Localization</string>
     <string name="capture">Capture</string>
-    <string name="capturing">Capturing…</string>
     <string name="single_frame_instruction">Point at a scanned area\nand tap Capture</string>
 
     <!-- Object Tracking -->
@@ -74,7 +73,7 @@
     <string name="close">Close</string>
     <string name="configuration_required">Configuration required</string>
     <string name="configuration_required_body">Add your credentials and at least one map or object code to multiset.properties, then rebuild.</string>
-    <string name="tracked_object">Tracking %1$s</string>
+    <string name="object_tracked">Object Tracked</string>
     <string name="localized_map">Localized \u00b7 %1$s</string>
     <string name="tracking_normal">Tracking</string>
     <string name="tracking_paused">Tracking paused \u2014 move slowly</string>
@@ -94,10 +93,6 @@
     <string name="false_positive_aliasing_advice">This spot looks like another part of the map, so localizing again from here will not help.</string>
     <string name="false_positive_reset_hint">If the map itself looks misplaced, tap Reset — the next response will be trusted as the new anchor.</string>
     <string name="localization_corrected">Map corrected by %1$.1f m</string>
-    <string name="anchor_trust_provisional">provisional</string>
-    <string name="anchor_trust_corroborated">corroborated</string>
-    <string name="anchor_trust_trusted">trusted</string>
-    <string name="anchor_trust_status">Anchor %1$s</string>
     <string name="false_positive_status">Pose rejected — localize again</string>
     <string name="false_positive_dismiss">OK</string>
     <!-- API environment (read-only) -->

@@ -37,20 +37,17 @@ object LocalizationConfig {
     /**
      * Interval between background localizations in seconds.
      * Only used when backgroundLocalization is true.
-     * Valid range: 15 - 180 seconds.
+     * Valid range: 10 - 180 seconds.
      */
     var backgroundLocalizationIntervalSeconds: Float = 30f
 
     /**
-     * Whether to enable relocalization when tracking is lost.
-     * Automatically triggers localization when AR tracking state changes.
+     * Re-localize after an AR tracking break that follows a fix, a return from the background
+     * included. The SDK hides the map until that fix and reports none of its misses.
      */
     var relocalization: Boolean = true
 
-    /**
-     * Keep trying until first localization succeeds.
-     * If true, failed localizations will silently retry until one succeeds.
-     */
+    /** Retry a failed first localization silently, up to 5 times, before reporting it. */
     var firstLocalizationUntilSuccess: Boolean = true
 
     // ============================================================
@@ -176,10 +173,7 @@ object LocalizationConfig {
     // QUERY MODE
     // ============================================================
 
-    /**
-     * Search strategy for single-frame localization: VPS1 (standard) or VPS2 (deep search).
-     * Multi-frame localization always runs VPS1 and ignores this setting.
-     */
+    /** Search strategy, single-frame and multi-frame alike: VPS1 (standard) or VPS2 (deep search). */
     var queryMode: QueryMode = QueryMode.VPS1
 
     // ============================================================
@@ -231,7 +225,7 @@ object LocalizationConfig {
      * Call this after modifying settings to ensure valid values.
      */
     fun validate() {
-        backgroundLocalizationIntervalSeconds = backgroundLocalizationIntervalSeconds.coerceIn(15f, 180f)
+        backgroundLocalizationIntervalSeconds = backgroundLocalizationIntervalSeconds.coerceIn(10f, 180f)
         numberOfFrames = numberOfFrames.coerceIn(4, 6)
         frameCaptureIntervalMs = frameCaptureIntervalMs.coerceIn(100L, 1000L)
         confidenceThreshold = confidenceThreshold.coerceIn(0.2f, 0.8f)

@@ -18,6 +18,7 @@ import com.multiset.sdk.mesh.MeshRepository
 import com.multiset.xr.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -55,6 +56,11 @@ class ObjectMeshRenderer(
     private val meshNodes = mutableMapOf<String, Node>()
     private val parentNodes = mutableMapOf<String, Node>()
     private val fetchedObjectCodes = mutableSetOf<String>()
+    // A fetch dropped by clearMeshes ends late (the download cannot be cancelled); only its own entry goes.
+    private val loads = mutableMapOf<String, Job>()
+
+    /** Objects the session hid because their placement is stale; the global switch must not show them. */
+    private val hiddenObjectCodes = mutableSetOf<String>()
 
     private var meshVisible = true
     private var outlineMaterial: CompletableFuture<Material>? = null
@@ -80,15 +86,19 @@ class ObjectMeshRenderer(
             .build()
     }
 
+    /** An object's mesh is being downloaded or built. */
+    val isLoading: Boolean get() = loads.isNotEmpty()
+
     /**
      * Downloads the object's GLB, builds its outline off the main thread, and attaches it under
-     * [parentNode]. Idempotent per [objectCode] — later calls for the same code are ignored.
+     * [parentNode], which must be that object's own anchor. Idempotent per [objectCode] — later
+     * calls for the same code are ignored.
      */
     fun fetchAndRender(objectCode: String, parentNode: Node) {
         if (!fetchedObjectCodes.add(objectCode)) return
         parentNodes[objectCode] = parentNode
 
-        rendererScope.launch {
+        val job = rendererScope.launch(start = CoroutineStart.LAZY) {
             try {
                 val glb = withContext(Dispatchers.IO) {
                     val fileUrl = meshRepository.fetchObjectMeshMetadata(objectCode).fileUrl
@@ -110,8 +120,12 @@ class ObjectMeshRenderer(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch/render mesh for $objectCode: ${e.message}", e)
+            } finally {
+                if (loads[objectCode] === coroutineContext[Job]) loads -= objectCode
             }
         }
+        loads[objectCode] = job
+        job.start()
     }
 
     /** Advances the outline's glow animation. */
@@ -131,6 +145,8 @@ class ObjectMeshRenderer(
         meshNodes.clear()
         parentNodes.clear()
         fetchedObjectCodes.clear()
+        loads.clear()
+        hiddenObjectCodes.clear()
     }
 
     /** Whether any object mesh is currently in the scene. */
@@ -142,8 +158,19 @@ class ObjectMeshRenderer(
      */
     fun setMeshVisible(visible: Boolean) {
         meshVisible = visible
-        meshNodes.values.forEach { it.isEnabled = visible }
+        meshNodes.forEach { (code, node) -> node.isEnabled = isShown(code) }
     }
+
+    /**
+     * Hides or shows one object's outline, apart from [setMeshVisible]: the session hides an outline
+     * whose object may have moved since it was placed, and shows it again once it is re-tracked.
+     */
+    fun setObjectVisible(objectCode: String, visible: Boolean) {
+        if (visible) hiddenObjectCodes -= objectCode else hiddenObjectCodes += objectCode
+        meshNodes[objectCode]?.isEnabled = isShown(objectCode)
+    }
+
+    private fun isShown(objectCode: String) = meshVisible && objectCode !in hiddenObjectCodes
 
     /** Cancels pending work and detaches all mesh nodes. Call when the AR session ends. */
     fun release() {
@@ -152,6 +179,8 @@ class ObjectMeshRenderer(
         meshNodes.clear()
         parentNodes.clear()
         fetchedObjectCodes.clear()
+        loads.clear()
+        hiddenObjectCodes.clear()
         animatedOutline = null
     }
 
@@ -222,7 +251,7 @@ class ObjectMeshRenderer(
         val root = Node().apply { name = objectCode }
         root.setParent(parent)
         prepared.forEach { buildNode(it).setParent(root) }
-        root.isEnabled = meshVisible
+        root.isEnabled = isShown(objectCode)
         meshNodes[objectCode] = root
         animatedOutline = outline
         if (outlineClockStart == 0L) outlineClockStart = System.nanoTime()

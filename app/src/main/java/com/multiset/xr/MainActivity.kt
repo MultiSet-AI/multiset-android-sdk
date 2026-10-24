@@ -21,10 +21,17 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.multiset.xr.config.ConfigStore
 import com.multiset.xr.ui.padForSystemBars
 import com.multiset.xr.databinding.ActivityMainBinding
+import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.MultiSetSDKCallback
+import com.multiset.sdk.MultiSetSDKConfig
+import com.multiset.sdk.mapping.MultiSetMapping
 import com.multiset.sdk.model.LocalizationMode
 import com.multiset.sdk.model.LocalizationResult
 import com.multiset.sdk.model.ObjectTrackingResult
@@ -34,15 +41,25 @@ import com.multiset.xr.ui.MultiSetLocalizationActivity.Companion.EXTRA_LOCALIZAT
 import com.multiset.xr.ui.ObjectTrackingActivity
 import com.multiset.xr.ui.ObjectTrackingActivity.Companion.EXTRA_OBJECT_CODES
 import com.multiset.xr.SettingsDialogFragment
+import com.multiset.xr.ui.mapping.DraftMapsActivity
+import com.multiset.xr.ui.mapping.DraftMapsCopy
+import com.multiset.xr.ui.mapping.MapScanActivity
+import com.multiset.xr.ui.mapping.MappingInstructionsActivity
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val STATE_MODE = "localization_mode"
     }
 
     private lateinit var binding: ActivityMainBinding
-    private var selectedMode: LocalizationMode = LocalizationMode.MULTI_FRAME
+    private var selectedMode: LocalizationMode = MultiSetSDKConfig.DEFAULT_LOCALIZATION_MODE
+    private var mapping: MultiSetMapping? = null
+
+    // A recreated screen (a rotation) re-registers with the SDK, which answers from the sign-in it has.
+    private var announceSignIn = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,12 +70,17 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
         binding.root.padForSystemBars(top = true, bottom = true)
 
         ConfigStore.load(this)
+        announceSignIn = savedInstanceState == null
+        savedInstanceState?.getString(STATE_MODE)
+            ?.let { saved -> LocalizationMode.entries.firstOrNull { it.name == saved } }
+            ?.let { selectedMode = it }
         val sdkReady = MultiSetSDKInit.initialize(this, this)
         if (!sdkReady) {
             showConfigurationAlert()
         }
 
         setupUI()
+        setupMapping(sdkReady)
         displayMapCode()
         displayObjectCodes()
 
@@ -69,13 +91,25 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_MODE, selectedMode.name)
+    }
+
+    // Uploads run in-process: returning to the app is when a parked or waiting draft tries again
+    override fun onResume() {
+        super.onResume()
+        mapping?.resumeUploads()
+    }
+
     private fun setupUI() {
         binding.localizationButton.isEnabled = false
         binding.objectTrackingButton.isEnabled = false
         binding.authButton.isEnabled = false
 
-        // Default mode = Multi Frame (matching reference default)
-        binding.modeToggleGroup.check(R.id.multiFrameButton)
+        binding.modeToggleGroup.check(
+            if (selectedMode == LocalizationMode.SINGLE_FRAME) R.id.singleFrameButton else R.id.multiFrameButton
+        )
 
         binding.modeToggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
@@ -92,6 +126,7 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
         }
 
         binding.authButton.setOnClickListener {
+            announceSignIn = true
             MultiSetSDKInit.initialize(this, this)
         }
 
@@ -112,6 +147,34 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
                 putExtra(EXTRA_OBJECT_CODES, codes.toTypedArray())
             }
             startActivity(intent)
+        }
+    }
+
+    // Scanning needs only an initialized SDK; uploading waits for authentication on its own
+    private fun setupMapping(sdkReady: Boolean) {
+        binding.createMapButton.isEnabled = sdkReady
+        binding.draftMapsButton.isEnabled = sdkReady
+        binding.createMapButton.setOnClickListener {
+            val first = if (ConfigStore.isMappingInstructionsHidden(this)) {
+                MapScanActivity::class.java
+            } else {
+                MappingInstructionsActivity::class.java
+            }
+            startActivity(Intent(this, first))
+        }
+        binding.draftMapsButton.setOnClickListener {
+            startActivity(Intent(this, DraftMapsActivity::class.java))
+        }
+        if (!sdkReady) return
+
+        val mapping = MultiSetSDK.mapping.also { this.mapping = it }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                mapping.drafts.collect { drafts ->
+                    binding.mappingDraftBadge.isVisible = drafts.isNotEmpty()
+                    binding.mappingDraftBadge.text = DraftMapsCopy.badge(drafts.size)
+                }
+            }
         }
     }
 
@@ -216,7 +279,8 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
             binding.authStatusChip.visibility = View.VISIBLE
             binding.localizationButton.isEnabled = true
             binding.objectTrackingButton.isEnabled = true
-            showToast("Authentication successful")
+            if (announceSignIn) showToast("Authentication successful")
+            announceSignIn = false
         }
     }
 
@@ -235,7 +299,9 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
                 "mapCodes: ${result.mapCodes}, " +
                 "position: [${result.position.joinToString()}], " +
                 "rotation: [${result.rotation.joinToString()}], " +
-                "confidence: ${result.confidence}")
+                "confidence: ${result.confidence}, " +
+                "geoCoordinates: ${result.geoCoordinates}, " +
+                "geoPose: ${result.geoPose}")
     }
 
     override fun onLocalizationFailure(error: String) {

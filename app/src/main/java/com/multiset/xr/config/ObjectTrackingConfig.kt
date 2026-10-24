@@ -46,14 +46,12 @@ object ObjectTrackingConfig {
     var bgTrackingDurationSeconds: Float = 15f
 
     /**
-     * Whether to restart tracking when AR tracking state is lost.
+     * Re-track once AR tracking holds again after a loss, a return from the background included;
+     * that run's miss is not reported.
      */
     var restartTracking: Boolean = true
 
-    /**
-     * Keep trying until first tracking succeeds.
-     * If true, failed tracking will silently retry until one succeeds.
-     */
+    /** Retry a failed first track silently, up to 5 times, before reporting it. */
     var firstTrackingUntilSuccess: Boolean = true
 
     /**
