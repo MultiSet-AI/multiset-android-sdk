@@ -78,6 +78,8 @@ class MapScanActivity : AppCompatActivity() {
     private var scan: MappingScanState? = null
     private var shownFailure: MappingFailure? = null
     private var interruptionAnnounced = false
+    private var finalMinuteAnnounced = false
+    private var finalMinuteAlert: AlertDialog? = null
     private var nameCardShown = false
     private var saving = false
     private var followedId: String? = null
@@ -282,6 +284,7 @@ class MapScanActivity : AppCompatActivity() {
         if (phase != MappingPhase.Finished && nameCardShown) hideNameCard()
         if (phase is MappingPhase.Failed && phase.failure !== shownFailure) showFailure(phase.failure)
         announceInterruption(previous, state)
+        announceFinalMinute(state)
     }
 
     private fun renderTimer(state: MappingScanState) {
@@ -365,6 +368,23 @@ class MapScanActivity : AppCompatActivity() {
             }
             else -> Unit
         }
+    }
+
+    // Once per scan, while recording; the banner stays for the rest of the minute
+    private fun announceFinalMinute(state: MappingScanState) {
+        if (state.phase != MappingPhase.Mapping) {
+            finalMinuteAnnounced = false
+            finalMinuteAlert?.dismiss()
+            finalMinuteAlert = null
+            return
+        }
+        if (finalMinuteAnnounced || !MapScanCopy.isInFinalMinute(state)) return
+        finalMinuteAnnounced = true
+        finalMinuteAlert = dialog(
+            MaterialAlertDialogBuilder(this)
+                .setMessage(MapScanCopy.FINAL_MINUTE)
+                .setPositiveButton(MapScanCopy.OK, null),
+        )
     }
 
     private fun onBack() {
@@ -551,9 +571,9 @@ class MapScanActivity : AppCompatActivity() {
         dialog(builder)
     }
 
-    private fun dialog(builder: MaterialAlertDialogBuilder) {
+    private fun dialog(builder: MaterialAlertDialogBuilder): AlertDialog {
         dialogs.removeAll { !it.isShowing }
-        dialogs += builder.show()
+        return builder.show().also { dialogs += it }
     }
 
     private fun hideKeyboard() {

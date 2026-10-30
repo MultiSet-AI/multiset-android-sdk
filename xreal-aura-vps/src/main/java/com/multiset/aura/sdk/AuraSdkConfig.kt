@@ -7,20 +7,14 @@ Redistribution in source or binary forms must retain this notice.
 package com.multiset.aura.sdk
 
 import com.multiset.aura.frame.AuraFramePlan
-import com.multiset.sdk.ClientSource
-import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.MultiSetSDKConfig
 
 /** The SDK config this sample runs with, for each target `multiset.properties` allows. */
 object AuraSdkConfig {
-    /** What this sample calls itself on the query usage log, followed by the SDK version. */
-    const val CLIENT_TARGET = "xreal-aura"
-
     /** Throws [IllegalArgumentException] as [MultiSetSDKConfig] does; [target] null runs objects only. */
     fun build(credentials: MultiSetCredentials.Ready, target: MapTarget?): MultiSetSDKConfig {
         val builder = MultiSetSDKConfig.Builder(credentials.clientId, credentials.clientSecret)
             .imageLongSide(AuraFramePlan.SDK_LONG_SIDE)
-            .clientSource(ClientSource.make(CLIENT_TARGET, MultiSetSDK.VERSION))
         when (target) {
             MapTarget.MAP -> builder.mapCode(credentials.codeFor(target))
             MapTarget.MAP_SET -> builder.mapSetCode(credentials.codeFor(target))

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.util.Log
 import com.google.android.filament.MaterialInstance
 import com.google.ar.sceneform.Node
+import com.google.ar.sceneform.math.Matrix
 import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.EngineInstance
@@ -41,6 +42,8 @@ class MeshRenderer(private val context: Context) {
 
         /** Persistent GLB cache — not evicted by the OS unlike cacheDir. */
         private const val CACHE_DIR = "mesh_cache"
+
+        private const val GRID_FROM_WORLD = "gridFromWorld"
     }
 
     private var revealMaterial: FilamentMaterial? = null
@@ -224,9 +227,16 @@ class MeshRenderer(private val context: Context) {
         private var maxRadius = computeMaxRadius()
         private var duration = MeshRevealTiming.duration(maxRadius)
         private var lastRadius = -1f
+        private val hasGridFrame = material?.material?.hasParameter(GRID_FROM_WORLD) == true
+        private val gridFromWorld = Matrix()
+
+        init {
+            updateGridFrame()
+        }
 
         fun tick(now: Long, camera: Vector3?) {
             val m = material ?: return
+            updateGridFrame()
             val elapsed = (now - startNanos) / 1e9f
             if (holding) {
                 if (elapsed >= MeshRevealTiming.DELAY_BETWEEN_LOOPS) restart(now, camera)
@@ -242,6 +252,14 @@ class MeshRenderer(private val context: Context) {
                 holding = true
                 startNanos = now
             }
+        }
+
+        // The grid follows the map root, not ARCore's world axes, so a refix moves it with the map.
+        private fun updateGridFrame() {
+            val m = material ?: return
+            val root = node.parent as? Node ?: return
+            if (!hasGridFrame || !Matrix.invert(root.worldModelMatrix, gridFromWorld)) return
+            m.setParameter(GRID_FROM_WORLD, MaterialInstance.FloatElement.MAT4, gridFromWorld.data, 0, 1)
         }
 
         /** Sweeps again from [camera], or from the last centre while tracking is lost. */

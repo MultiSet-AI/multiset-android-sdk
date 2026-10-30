@@ -7,15 +7,11 @@ Redistribution in source or binary forms must retain this notice.
 package com.multiset.xr
 
 import android.content.Context
-import com.multiset.sdk.ClientSource
 import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.MultiSetSDKCallback
 import com.multiset.sdk.MultiSetSDKConfig
 
 object MultiSetSDKInit {
-    /** What this sample calls itself on the query usage log, followed by the SDK version. */
-    const val CLIENT_TARGET = "android-sdk"
-
     fun objectCodes(): List<String> =
         BuildConfig.MULTISET_OBJECT_CODES.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -51,7 +47,6 @@ object MultiSetSDKInit {
         if (baseUrl.isNotBlank()) builder.baseUrl(baseUrl.trim())
 
         return builder
-            .clientSource(ClientSource.make(CLIENT_TARGET, MultiSetSDK.VERSION))
             .enableMeshVisualization(true)
             .backgroundLocalization(true)
             .build()

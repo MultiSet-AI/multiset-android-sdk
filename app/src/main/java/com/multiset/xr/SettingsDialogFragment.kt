@@ -283,7 +283,7 @@ class SettingsDialogFragment : DialogFragment() {
         val valueView = TextView(requireContext()).apply {
             text = format(snapped)
             textSize = 15f
-            setTextColor(themeColor(com.google.android.material.R.attr.colorPrimary))
+            setTextColor(themeColor(androidx.appcompat.R.attr.colorPrimary))
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         header.addView(labelView)

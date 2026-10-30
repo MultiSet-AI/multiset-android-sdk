@@ -78,10 +78,8 @@ dependencies {
     // A file dependency carries no transitive metadata, so everything the SDK exposes
     // through api(...) has to be declared here or it goes missing at runtime.
     implementation(libs.okhttp3.okhttp)
-    implementation(libs.logging.interceptor)
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.vision.common)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

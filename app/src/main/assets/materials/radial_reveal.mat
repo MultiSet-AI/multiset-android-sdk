@@ -4,8 +4,9 @@
 //   matc -a opengl -a vulkan -a metal -p mobile -o app/src/main/res/raw/radial_reveal_material.filamat \
 //        app/src/main/assets/materials/radial_reveal.mat
 //
-// Port of iOS RadialRevealShader.metal.
+// Port of iOS RadialRevealShader.metal, with the grid reworked (see gridFactor).
 // reveal = (centre xyz in world space, current radius in metres); radius 0 draws nothing.
+// gridFromWorld = the map root's inverse world matrix, so the grid is fixed to the map.
 material {
     name : RadialReveal,
     shadingModel : unlit,
@@ -13,24 +14,27 @@ material {
     culling : back,
     depthWrite : false,
     parameters : [
-        { type : float4, name : reveal }
+        { type : float4, name : reveal },
+        { type : float4x4, name : gridFromWorld }
     ]
 }
 
 fragment {
+    // One axis's lines are where the surface crosses a plane of that axis. A surface lying
+    // near such a plane (a floor at y ~ 1 m) would fill with colour, so the axis fades out as
+    // the surface turns parallel to its planes, and the width is measured along the surface.
+    float axisLines(float coord, float normal, float lineWidth) {
+        float f = fract(coord);
+        float slope = sqrt(max(1.0 - normal * normal, 1e-4));
+        float across = min(f, 1.0 - f) / slope;
+        float line = 1.0 - smoothstep(lineWidth * 0.5, lineWidth, across);
+        return line * (1.0 - smoothstep(0.55, 0.8, abs(normal)));
+    }
+
     float gridFactor(vec3 pos, vec3 n, float gridSize, float lineWidth) {
-        vec3 a = abs(n);
-        vec2 g;
-        if (a.y > a.x && a.y > a.z) {
-            g = pos.xz / gridSize;
-        } else if (a.x > a.z) {
-            g = pos.yz / gridSize;
-        } else {
-            g = pos.xy / gridSize;
-        }
-        vec2 f = fract(abs(g));
-        vec2 d = min(f, 1.0 - f);
-        return 1.0 - smoothstep(0.0, lineWidth, min(d.x, d.y));
+        vec3 g = pos / gridSize;
+        float w = lineWidth / gridSize;
+        return max(axisLines(g.x, n.x, w), max(axisLines(g.y, n.y, w), axisLines(g.z, n.z, w)));
     }
 
     void material(inout MaterialInputs material) {
@@ -50,8 +54,9 @@ fragment {
         float glowWidth = max(radius * 0.10, 0.1);
         float glow = clamp(1.0 - clamp((radius - dist) / glowWidth, 0.0, 1.0), 0.0, 1.0);
         glow *= glow;
-        vec3 n = normalize(cross(dFdx(pos), dFdy(pos)));
-        float grid = gridFactor(pos, n, 1.0, 0.02);
+        vec3 mapPos = (materialParams.gridFromWorld * vec4(pos, 1.0)).xyz;
+        vec3 n = normalize(cross(dFdx(mapPos), dFdy(mapPos)));
+        float grid = gridFactor(mapPos, n, 1.0, 0.01);
         vec3 color = mix(baseColor, vec3(1.0, 1.0, 0.0), grid);
         float alpha = max(baseAlpha, grid * 0.8);
         color += glowColor * glow * 2.0;

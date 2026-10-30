@@ -44,7 +44,8 @@ The SDK never touches an AR runtime. Your app turns each camera frame into a pla
 | **New defaults** | Single-frame localization with VPS-1, and `poseConsistencyCheck = false`. |
 | **MapSet mesh placement** | Every MapSet member's mesh is now placed correctly, not only the origin map's. Both samples keep the mesh of every localized member in the scene. |
 | **Response logging** | Every localization response is logged whole under the `MultiSetSDK` tag. |
-| **Sample app** | A run-status UI ported from the iOS SDK, map-scanning screens, one anchor per tracked object, and no ARCore depth request on devices without the Depth API. |
+| **Sample app** | A run-status UI ported from the iOS SDK, map-scanning screens, one anchor per tracked object, and no ARCore depth request on devices without the Depth API. The scan screen warns once, with an alert, when one minute of recording is left. |
+| **Fewer dependencies** | The SDK no longer needs `logging-interceptor` or `vision-common`, and now builds against Gson 2.15.0, Coroutines 1.11.0 and core-ktx 1.18.0. Update the list you declare beside the AAR (see [Integration](#1-add-the-aar-and-its-dependencies)). The sample uses ARCore 1.57.0 and Jetpack XR 1.0.0. |
 
 **Upgrading from 2.0.0** needs no source changes, but recompile against the new AAR: some signatures gained parameters. Check the [behaviour changes](#upgrading-from-200).
 
@@ -87,15 +88,13 @@ Copy `multiset-sdk.aar` into your module's `libs/` folder. A file dependency car
 dependencies {
     implementation(files("libs/multiset-sdk.aar"))
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("com.google.code.gson:gson:2.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("com.google.mlkit:vision-common:17.3.0")
-    implementation("androidx.core:core-ktx:1.16.0")
+    implementation("com.google.code.gson:gson:2.15.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("androidx.core:core-ktx:1.18.0")
 }
 ```
 
-Rendering with Sceneform, as `:app` does, also needs ARCore 1.46.0, Sceneform 1.24.6 (the RGregat fork with 16 KB page-size support, from JitPack) and `packaging.jniLibs.useLegacyPackaging = true`. None of these is needed to drive the SDK from another runtime.
+Rendering with Sceneform, as `:app` does, also needs ARCore 1.57.0, Sceneform 1.24.6 (the RGregat fork with 16 KB page-size support, from JitPack) and `packaging.jniLibs.useLegacyPackaging = true`. None of these is needed to drive the SDK from another runtime.
 
 ### 2. Credentials
 
@@ -593,7 +592,7 @@ Map scanning and the GPS hint are not part of this sample.
 - **Requires** an Android XR device with a world-facing camera, such as XREAL Aura, on Android 14+. Elsewhere it shows a "needs Android XR" message.
 - **Credentials** come from the same `multiset.properties`; rebuild after editing it.
 - **Permissions:** `CAMERA`, `android.permission.HEAD_TRACKING` and `android.permission.SCENE_UNDERSTANDING_COARSE`, each asked from a card in the panel.
-- **Full Space** is needed for 3D content; in Home Space the sample asks you to switch. Jetpack XR is pinned (`compose` 1.0.0-beta01; `runtime`, `scenecore`, `arcore` 1.0.0-rc01; `extensions-xr` 1.1.0).
+- **Full Space** is needed for 3D content; in Home Space the sample asks you to switch. Jetpack XR is pinned (`compose` 1.0.0-beta02; `runtime`, `scenecore`, `arcore` 1.0.0; `extensions-xr` 1.4.0).
 - **Recovery:** the sample re-localizes and re-tracks itself when head tracking resumes, so it turns off the sessions' own `relocalization` and `restartTracking`.
 
 ```bash
