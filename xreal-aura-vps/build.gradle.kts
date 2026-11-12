@@ -31,7 +31,7 @@ android {
         targetSdk = 36
 
         versionCode = 1
-        versionName = "2.1.0"
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -58,6 +58,8 @@ android {
         )
         // Optional API host override; empty means the SDK uses its production default.
         buildConfigField("String", "MULTISET_BASE_URL", "\"${multisetProp("MULTISET_BASE_URL")}\"")
+        // Optional token endpoint answering {"token": "<JWT>"}; set, the app never uses the client secret.
+        buildConfigField("String", "MULTISET_TOKEN_SERVER_URL", "\"${multisetProp("MULTISET_TOKEN_SERVER_URL")}\"")
     }
 
     buildTypes {

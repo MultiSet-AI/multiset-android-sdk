@@ -73,5 +73,13 @@ Redistribution in source or binary forms must retain this notice.
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MultiSetSDK" />
+
+        <activity
+            android:name=".ui.geopose.GeoPoseMapActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MultiSetSDK.AR" />
+
     </application>
 </manifest>

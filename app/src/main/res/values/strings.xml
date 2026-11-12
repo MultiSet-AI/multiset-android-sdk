@@ -100,4 +100,34 @@
     <string name="settings_base_url_label">Base URL</string>
     <string name="settings_base_url_production">Production. Set MULTISET_BASE_URL in multiset.properties to point this build at another deployment.</string>
     <string name="settings_base_url_custom">Update the MULTISET_BASE_URL in multiset.properties to point this build at another deployment..</string>
+
+    <!-- Geo Pose Map View -->
+    <string name="geopose_label">Geo Pose Map View</string>
+    <string name="geopose_body">Plot each fix\'s GeoPose, its position and compass heading, on a map beside the device GPS track. Needs a georeferenced map or map set.</string>
+    <string name="geopose_open">Open map view</string>
+    <string name="geopose_card_label">GeoPose</string>
+    <string name="geopose_heading">%1$.0f° %2$s</string>
+    <string name="geopose_heading_none">—</string>
+    <string name="geopose_waiting">Waiting for a fix…</string>
+    <string name="geopose_none">No GeoPose in the response</string>
+    <string name="geopose_altitude">Alt %1$.1f m</string>
+    <string name="geopose_confidence">conf %1$.2f</string>
+    <string name="geopose_notice_not_georeferenced">The response has no GeoPose. Georeference this map to see it here.</string>
+    <string name="geopose_notice_permission">Allow location to compare with device GPS</string>
+    <string name="geopose_notice_location_off">Location is off \u00b7 no device GPS track</string>
+    <string name="geopose_notice_coarse">Approximate location only \u00b7 the GPS track is coarse</string>
+    <string name="geopose_missing_toast">Localized, but the response has no GeoPose</string>
+    <string name="geopose_marker_gps">Device GPS</string>
+    <string name="geopose_marker_latest">GeoPose (latest)</string>
+    <string name="geopose_marker_fix">GeoPose</string>
+    <string name="geopose_recenter">Re-center</string>
+    <string name="geopose_zoom_in">Zoom in</string>
+    <string name="geopose_zoom_out">Zoom out</string>
+    <string name="geopose_map_style">Map style</string>
+    <string name="geopose_style_street">Street</string>
+    <string name="geopose_style_satellite">Satellite</string>
+    <string name="geopose_style_light">Light</string>
+    <string name="geopose_style_dark">Dark</string>
+    <string name="geopose_full_screen">Full screen</string>
+    <string name="geopose_exit_full_screen">Exit full screen</string>
 </resources>

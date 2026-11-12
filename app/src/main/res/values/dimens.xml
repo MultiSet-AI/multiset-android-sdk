@@ -3,4 +3,5 @@
     <!-- 4:3, like the scan's frames; at xxhdpi the width is about 240 px, a quarter of a 960 px frame. -->
     <dimen name="draft_thumbnail_width">80dp</dimen>
     <dimen name="draft_thumbnail_height">60dp</dimen>
+    <dimen name="geopose_sheet_peek_height">90dp</dimen>
 </resources>

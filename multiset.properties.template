@@ -8,9 +8,14 @@
 # Leave empty to use the production host: https://api.multiset.ai
 MULTISET_BASE_URL=
 
-# Authentication Credentials (Required)
+# Authentication Credentials (Required unless MULTISET_TOKEN_SERVER_URL is set)
 MULTISET_CLIENT_ID=
 MULTISET_CLIENT_SECRET=
+
+# Token Server (Optional)
+# Your server's endpoint answering {"token": "<MultiSet JWT>"}. When set, both samples get their
+# tokens there and never use the client ID and secret. See SERVER_AUTH_GUIDE.md.
+MULTISET_TOKEN_SERVER_URL=
 
 # Map Configuration (Provide one of the following)
 MULTISET_MAP_CODE=

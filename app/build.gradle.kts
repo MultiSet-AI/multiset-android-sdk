@@ -33,8 +33,8 @@ android {
         minSdk = 28
         targetSdk = 36
 
-        versionCode = 18
-        versionName = "2.1.0"
+        versionCode = 19
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -45,6 +45,8 @@ android {
         buildConfigField("String", "MULTISET_OBJECT_CODES", "\"${multisetProp("MULTISET_OBJECT_CODES")}\"")
         // Optional API host override; empty means the SDK uses its production default.
         buildConfigField("String", "MULTISET_BASE_URL", "\"${multisetProp("MULTISET_BASE_URL")}\"")
+        // Optional token endpoint answering {"token": "<JWT>"}; set, the app never uses the client secret.
+        buildConfigField("String", "MULTISET_TOKEN_SERVER_URL", "\"${multisetProp("MULTISET_TOKEN_SERVER_URL")}\"")
     }
 
     buildTypes {
@@ -99,6 +101,9 @@ dependencies {
     // ARCore + Sceneform (AR sample only)
     implementation(libs.core)
     implementation(libs.sceneform)
+
+    // Map tiles and overlays for the Geo Pose Map View (sample only)
+    implementation(libs.osmdroid.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

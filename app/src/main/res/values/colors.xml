@@ -63,6 +63,11 @@
     <color name="ar_track">#29FFFFFF</color>
     <color name="ar_field">#14FFFFFF</color>
 
+    <!-- Geo Pose map tracks, drawn over map tiles, so the same in both themes. -->
+    <color name="track_gps">#1E88E5</color>
+    <color name="track_gps_fill">#331E88E5</color>
+    <color name="track_geopose">#43A047</color>
+
     <!-- Legacy names still referenced by the launcher icon / older drawables -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>

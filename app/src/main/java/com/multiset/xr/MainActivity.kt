@@ -40,6 +40,7 @@ import com.multiset.xr.ui.MultiSetLocalizationActivity
 import com.multiset.xr.ui.MultiSetLocalizationActivity.Companion.EXTRA_LOCALIZATION_MODE
 import com.multiset.xr.ui.ObjectTrackingActivity
 import com.multiset.xr.ui.ObjectTrackingActivity.Companion.EXTRA_OBJECT_CODES
+import com.multiset.xr.ui.geopose.GeoPoseMapActivity
 import com.multiset.xr.SettingsDialogFragment
 import com.multiset.xr.ui.mapping.DraftMapsActivity
 import com.multiset.xr.ui.mapping.DraftMapsCopy
@@ -105,6 +106,7 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
     private fun setupUI() {
         binding.localizationButton.isEnabled = false
         binding.objectTrackingButton.isEnabled = false
+        binding.geoPoseMapButton.isEnabled = false
         binding.authButton.isEnabled = false
 
         binding.modeToggleGroup.check(
@@ -132,6 +134,13 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
 
         binding.localizationButton.setOnClickListener {
             val intent = Intent(this, MultiSetLocalizationActivity::class.java).apply {
+                putExtra(EXTRA_LOCALIZATION_MODE, selectedMode.name)
+            }
+            startActivity(intent)
+        }
+
+        binding.geoPoseMapButton.setOnClickListener {
+            val intent = Intent(this, GeoPoseMapActivity::class.java).apply {
                 putExtra(EXTRA_LOCALIZATION_MODE, selectedMode.name)
             }
             startActivity(intent)
@@ -194,6 +203,9 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
             }
         }
     }
+
+    private fun mapConfigured(): Boolean =
+        BuildConfig.MULTISET_MAP_CODE.isNotEmpty() || BuildConfig.MULTISET_MAP_SET_CODE.isNotEmpty()
 
     private fun displayObjectCodes() {
         val objectCodes = MultiSetSDKInit.objectCodes()
@@ -279,6 +291,7 @@ class MainActivity : AppCompatActivity(), MultiSetSDKCallback {
             binding.authStatusChip.visibility = View.VISIBLE
             binding.localizationButton.isEnabled = true
             binding.objectTrackingButton.isEnabled = true
+            binding.geoPoseMapButton.isEnabled = mapConfigured()
             if (announceSignIn) showToast("Authentication successful")
             announceSignIn = false
         }

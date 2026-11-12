@@ -107,6 +107,7 @@ object AuraSdk {
         MultiSetCredentials.MAP_SET_CODE -> BuildConfig.MULTISET_MAP_SET_CODE
         MultiSetCredentials.OBJECT_CODES -> BuildConfig.MULTISET_OBJECT_CODES
         MultiSetCredentials.BASE_URL -> BuildConfig.MULTISET_BASE_URL
+        MultiSetCredentials.TOKEN_SERVER_URL -> BuildConfig.MULTISET_TOKEN_SERVER_URL
         else -> ""
     }
 }

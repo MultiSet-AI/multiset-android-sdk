@@ -13,8 +13,10 @@ import com.multiset.sdk.MultiSetSDKConfig
 object AuraSdkConfig {
     /** Throws [IllegalArgumentException] as [MultiSetSDKConfig] does; [target] null runs objects only. */
     fun build(credentials: MultiSetCredentials.Ready, target: MapTarget?): MultiSetSDKConfig {
-        val builder = MultiSetSDKConfig.Builder(credentials.clientId, credentials.clientSecret)
-            .imageLongSide(AuraFramePlan.SDK_LONG_SIDE)
+        val builder = credentials.tokenServerUrl
+            ?.let { MultiSetSDKConfig.Builder(TokenServerProvider(it)) }
+            ?: MultiSetSDKConfig.Builder(credentials.clientId, credentials.clientSecret)
+        builder.imageLongSide(AuraFramePlan.SDK_LONG_SIDE)
         when (target) {
             MapTarget.MAP -> builder.mapCode(credentials.codeFor(target))
             MapTarget.MAP_SET -> builder.mapSetCode(credentials.codeFor(target))

@@ -24,12 +24,16 @@ object MultiSetSDKInit {
             mapSetCode = BuildConfig.MULTISET_MAP_SET_CODE,
             objectCodes = objectCodes(),
             baseUrl = BuildConfig.MULTISET_BASE_URL,
+            tokenServerUrl = BuildConfig.MULTISET_TOKEN_SERVER_URL,
         ) ?: return false
         MultiSetSDK.initialize(context.applicationContext, config, callback)
         return true
     }
 
-    /** The SDK config for these `multiset.properties` values; null when credentials or every code are missing. */
+    /**
+     * The SDK config for these `multiset.properties` values; null when every code, or both the
+     * credentials and a token server, are missing. A token server is used in place of the credentials.
+     */
     fun config(
         clientId: String,
         clientSecret: String,
@@ -37,11 +41,17 @@ object MultiSetSDKInit {
         mapSetCode: String,
         objectCodes: List<String>,
         baseUrl: String,
+        tokenServerUrl: String = "",
     ): MultiSetSDKConfig? {
-        if (clientId.isEmpty() || clientSecret.isEmpty()) return null
+        val tokenServer = tokenServerUrl.trim()
+        if (tokenServer.isEmpty() && (clientId.isEmpty() || clientSecret.isEmpty())) return null
         if (mapCode.isEmpty() && mapSetCode.isEmpty() && objectCodes.isEmpty()) return null
 
-        val builder = MultiSetSDKConfig.Builder(clientId, clientSecret)
+        val builder = if (tokenServer.isNotEmpty()) {
+            MultiSetSDKConfig.Builder(TokenServerProvider(tokenServer))
+        } else {
+            MultiSetSDKConfig.Builder(clientId, clientSecret)
+        }
         if (mapCode.isNotEmpty()) builder.mapCode(mapCode) else if (mapSetCode.isNotEmpty()) builder.mapSetCode(mapSetCode)
         if (objectCodes.isNotEmpty()) builder.objectCodes(objectCodes)
         if (baseUrl.isNotBlank()) builder.baseUrl(baseUrl.trim())

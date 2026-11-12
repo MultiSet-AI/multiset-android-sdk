@@ -22,6 +22,7 @@ xrScenecore = "1.0.0"
 xrArcore = "1.0.0"
 extensionsXr = "1.4.0"
 composeBomXr = "2025.07.00"
+osmdroid = "6.1.20"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -56,6 +57,7 @@ androidx-xr-runtime = { group = "androidx.xr.runtime", name = "runtime", version
 androidx-xr-scenecore = { group = "androidx.xr.scenecore", name = "scenecore", version.ref = "xrScenecore" }
 androidx-xr-arcore = { group = "androidx.xr.arcore", name = "arcore", version.ref = "xrArcore" }
 extensions1-xr = { group = "com.android.extensions.xr", name = "extensions-xr", version.ref = "extensionsXr" }
+osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

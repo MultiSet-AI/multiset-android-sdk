@@ -356,6 +356,61 @@ Redistribution in source or binary forms must retain this notice.
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- ── Geo Pose map view ── -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.MultiSetSDK.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:background="@drawable/bg_icon_tile_brand"
+                        android:contentDescription="@null"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_navigation"
+                        app:tint="@color/brand_ink" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:text="@string/geopose_label"
+                        android:textAppearance="@style/TextAppearance.MultiSetSDK.CardTitle"
+                        android:textColor="@color/brand_ink" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/geopose_body"
+                    android:textAppearance="@style/TextAppearance.MultiSetSDK.Meta" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/geoPoseMapButton"
+                    style="@style/Widget.MultiSetSDK.Button.Tonal.Brand"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/geopose_open" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- ── Footer ── -->
         <TextView
             android:id="@+id/instructionsText"

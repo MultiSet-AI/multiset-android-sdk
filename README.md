@@ -24,33 +24,25 @@ The SDK never touches an AR runtime. Your app turns each camera frame into a pla
 - 3D map and object mesh loading
 - Non-LiDAR map scanning, with drafts and upload to your account
 - Automatic token refresh and typed failures (`MultiSetError`)
+- A token provider, so the client secret can stay on your own server
 - Configurable API host for staging and on-premise deployments
 
 ---
 
-## What's New in 2.1.0
+## What's New in 2.2.0
 
 | Change | Notes |
 |--------|-------|
-| **Map scanning (Non-LiDAR)** | Record a new map on the device with `MultiSetSDK.mapping`, save it as a draft and upload it with the SDK's own credentials. Your runtime supplies frames through `MultiSetMappingSource`. The API mirrors the iOS SDK's. See [Map Scanning](#map-scanning-non-lidar). |
-| **XREAL Aura sample** | `:xreal-aura-vps` runs map and MapSet localization and object tracking on Android XR glasses, with the same AAR and `multiset.properties`. See [XREAL Aura sample](#xreal-aura-sample-xreal-aura-vps). |
-| **Relocalization after a tracking break** | With `relocalization` on, the session re-localizes once tracking has held for 1 s after a break. `recoveryPhase`, `needsRealignment` and `onRecoveryPhaseChanged` tell you when to hide the map. Report tracking with the new `reportTrackingState`. See [Tracking breaks](#tracking-breaks). |
-| **Object tracking across breaks** | `restartTracking` re-tracks once tracking holds again, `onPlacementVisibilityChanged` hides an outline until its object is tracked again, and `resetSession()` re-arms the first track. Object tracking has its own settings on `MultiSetSDKConfig`. |
-| **First localization until success** | A failed first fix is retried silently up to 5 times, then reported once, with background localization on or off. The first object track works the same way. |
-| **Run stages** | Both sessions report `Capturing`, `Uploading`, `AwaitingResponse` and `Idle` through `onStageChanged(stage, isBackground)`. See [Run stages](#run-stages). |
-| **VPS-2 for multi-frame** | `queryMode` is sent with multi-frame queries too, for a map or a MapSet, and is on `MultiSetSDKConfig`. |
-| **Hints and GPS reach the query** | `hintPosition`, `hintFloorHeight`, `hintRadius`, `use2DFiltering`, the GPS hint (`MultiSetSDK.geoHintProvider`) and `includeGeoCoordinatesInResponse` are now sent. The result carries the new `geoPose`. |
-| **Query image size** | `imageLongSide` (default 960, at most 1280) sets the query image's long side. Frames keep their aspect ratio instead of being stretched to 960 × 720. |
-| **New defaults** | Single-frame localization with VPS-1, and `poseConsistencyCheck = false`. |
-| **MapSet mesh placement** | Every MapSet member's mesh is now placed correctly, not only the origin map's. Both samples keep the mesh of every localized member in the scene. |
-| **Response logging** | Every localization response is logged whole under the `MultiSetSDK` tag. |
-| **Sample app** | A run-status UI ported from the iOS SDK, map-scanning screens, one anchor per tracked object, and no ARCore depth request on devices without the Depth API. The scan screen warns once, with an alert, when one minute of recording is left. |
-| **Fewer dependencies** | The SDK no longer needs `logging-interceptor` or `vision-common`, and now builds against Gson 2.15.0, Coroutines 1.11.0 and core-ktx 1.18.0. Update the list you declare beside the AAR (see [Integration](#1-add-the-aar-and-its-dependencies)). The sample uses ARCore 1.57.0 and Jetpack XR 1.0.0. |
+| **Token provider** | Keep the client secret on your own server. Pass a `MultiSetTokenProvider` as `tokenProvider`, or build with `MultiSetSDKConfig.Builder(provider)`, and the SDK asks your code for each token with a reason: `INITIAL`, `EXPIRING` or `REJECTED`. See [Keeping the Client Secret on Your Server](#keeping-the-client-secret-on-your-server) and [SERVER_AUTH_GUIDE.md](SERVER_AUTH_GUIDE.md). |
+| **Samples: token server** | Set `MULTISET_TOKEN_SERVER_URL` in `multiset.properties` and both samples get their tokens from your endpoint through `TokenServerProvider`, never using the client ID and secret. See [Credentials](#2-credentials). |
+| **Sample: Geo Pose Map View** | A new card on the sample's home screen opens a map that plots each fix's GeoPose, its position and compass heading, beside the device GPS track. It needs a geo-referenced map or MapSet. See [Sample App](#sample-app-app) and [Reading the GeoPose heading](#reading-the-geopose-heading). |
+| **A refused token is not resent** | A request refused with HTTP 401 is no longer sent again when the renewed token is the one that was refused. |
 
-**Upgrading from 2.0.0** needs no source changes, but recompile against the new AAR: some signatures gained parameters. Check the [behaviour changes](#upgrading-from-200).
+**Upgrading from 2.1.0** needs no source changes: `clientId` and `clientSecret` keep working as before. Recompile against the new AAR, since `MultiSetSDKConfig` gained the `tokenProvider` parameter. The dependency list is unchanged.
 
 ### Earlier releases
 
+- **2.1.0:** Non-LiDAR map scanning with drafts and upload, the XREAL Aura sample, relocalization after a tracking break, object tracking across breaks, a silent first-fix retry, run stages, VPS-2 for multi-frame, hints and the GPS hint sent with every query, `imageLongSide`, new defaults (single-frame VPS-1, `poseConsistencyCheck = false`), correct MapSet mesh placement, and fewer dependencies (no `logging-interceptor` or `vision-common`). Upgrading from 2.0.0 needs no source changes; check the [behaviour changes](#upgrading-from-200).
 - **2.0.0:** an anchor-based pose consistency gate with `onLocalizationCorrected` and `onAnchorTrustChanged`, flat distance and heading limits, `notifyWorldOriginReset()`, `CameraFrame.timestampSeconds` and `resetLocalizationSession()`. Upgrading from 1.16.0 is source-breaking: see [Upgrading to 2.0.0](#upgrading-to-200).
 - **1.16.0:** the AR-free SDK (`FrameSource` and sessions), false-positive rejection, a configurable API host, query mode, typed failures and automatic token refresh.
 
@@ -109,6 +101,7 @@ echo "multiset.properties" >> .gitignore
 MULTISET_BASE_URL=
 MULTISET_CLIENT_ID=your_client_id
 MULTISET_CLIENT_SECRET=your_client_secret
+MULTISET_TOKEN_SERVER_URL=
 MULTISET_MAP_CODE=your_map_code
 MULTISET_MAP_SET_CODE=
 MULTISET_OBJECT_CODES=OBJ_001, OBJ_002
@@ -116,7 +109,8 @@ MULTISET_OBJECT_CODES=OBJ_001, OBJ_002
 
 | Property | Notes |
 |----------|-------|
-| `MULTISET_CLIENT_ID`, `MULTISET_CLIENT_SECRET` | Required. With either one empty, the app reports the SDK as not configured. |
+| `MULTISET_CLIENT_ID`, `MULTISET_CLIENT_SECRET` | Required unless `MULTISET_TOKEN_SERVER_URL` is set. With either one empty, the app reports the SDK as not configured. |
+| `MULTISET_TOKEN_SERVER_URL` | Optional. Your endpoint answering a GET with `{"token": "<JWT>"}`. When set, both samples get their tokens there, adding `reason=initial`, `expiring` or `rejected`, and never use the client ID and secret, which may stay empty. `http://` endpoints work in debug builds only. |
 | `MULTISET_MAP_CODE` or `MULTISET_MAP_SET_CODE` | Fill one. If both are set, `:app` uses the map code; the Aura sample offers a choice in Settings. |
 | `MULTISET_OBJECT_CODES` | Comma-separated, up to 10, for object tracking. |
 | `MULTISET_BASE_URL` | Optional API host for staging or on-premise; empty means `https://api.multiset.ai`. `http://` hosts work in debug builds only. |
@@ -134,7 +128,9 @@ val config = MultiSetSDKConfig.Builder(clientId, clientSecret)
 MultiSetSDK.initialize(applicationContext, config, callback)
 ```
 
-`MultiSetSDKConfig` validates on construction. It throws on blank credentials, a missing map or object code, more than 10 object codes, a malformed `baseUrl`, or a value out of range: `numberOfFrames` 4–6, `imageQuality` 1–100, `imageLongSide` 1–1280, `confidenceThreshold` 0–1, `poseConsistencyThreshold` 1.5–15 m, `poseConsistencyYawThreshold` 10–60°, `hintRadius` 1–100.
+A secret in your app can be read by anyone who unpacks it. To keep it on your own server, pass a `tokenProvider` instead; see [Keeping the Client Secret on Your Server](#keeping-the-client-secret-on-your-server).
+
+`MultiSetSDKConfig` validates on construction. It throws on blank credentials without a `tokenProvider`, credentials alongside one, a missing map or object code, more than 10 object codes, a malformed `baseUrl`, or a value out of range: `numberOfFrames` 4–6, `imageQuality` 1–100, `imageLongSide` 1–1280, `confidenceThreshold` 0–1, `poseConsistencyThreshold` 1.5–15 m, `poseConsistencyYawThreshold` 10–60°, `hintRadius` 1–100.
 
 **Query image size.** Each frame is scaled uniformly, up or down, so its longer side is `imageLongSide` pixels (default 960, at most 1280). Nothing is cropped or stretched, and the intrinsics are scaled with it: ARCore's 640 × 480 image goes out at 960 × 720.
 
@@ -360,7 +356,40 @@ startActivity(Intent(this, ObjectTrackingActivity::class.java))
 
 ## Authentication and Token Lifetime
 
-Authentication is automatic. The M2M token lives 5 minutes and the SDK renews it ahead of expiry; concurrent requests share one renewal, and a request rejected with HTTP 401 is retried once with a fresh token, reporting no failure if that succeeds. Calling `initialize` again with the same account, for example after a rotation, sends no request while the token is valid. Hosts that call the MultiSet API themselves can use `MultiSetSDK.currentToken()`.
+Authentication is automatic. The M2M token lives 5 minutes and the SDK renews it ahead of expiry; concurrent requests share one renewal, and a request rejected with HTTP 401 is retried once with a fresh token, reporting no failure if that succeeds. Calling `initialize` again with the same account (the same client ID and secret, or an equal `tokenProvider`), for example after a rotation, sends no request while the token is valid. Hosts that call the MultiSet API themselves can use `MultiSetSDK.currentToken()`.
+
+### Keeping the Client Secret on Your Server
+
+Instead of `clientId` and `clientSecret`, give the SDK a token provider. Your server keeps the secret, gets MultiSet access tokens, and hands them to the app; the SDK sends that token on every API call and asks for a new one when it needs to. [SERVER_AUTH_GUIDE.md](SERVER_AUTH_GUIDE.md) walks through both sides, with a server example.
+
+```kotlin
+val provider = MultiSetTokenProvider { reason ->
+    myBackend.multiSetToken(skipCache = reason == MultiSetTokenRequestReason.REJECTED)
+}
+
+val config = MultiSetSDKConfig.Builder(provider)
+    .mapCode("your_map_code")
+    .build()
+
+MultiSetSDK.initialize(applicationContext, config, callback)
+```
+
+Your server gets each token the way the SDK otherwise would, from the environment `baseUrl` points at:
+
+```bash
+curl -X POST https://api.multiset.ai/v1/m2m/token -u "$CLIENT_ID:$CLIENT_SECRET"
+# {"token": "<JWT>", "expiresOn": "..."}
+```
+
+- The provider is asked with a reason: `INITIAL` from `initialize`, `EXPIRING` before the current token runs out, and `REJECTED` after the API refused it with a 401. On `REJECTED`, return a newly issued token, not a cached copy.
+- Return only the token string: the SDK reads the expiry from the token's own `exp`, so your server's `expiresOn` is not needed. A token your server hands out part used, from its cache, is renewed before its `exp`.
+- Your server may cache a token across devices, but should hand out a new one once the cached copy has under 5 minutes left.
+- A request refused with a 401 is retried once with the replacement. If that is refused too, or the provider returns the refused token again, the request fails with the 401.
+- A provider that throws or returns an empty string fails `initialize` through `onAuthenticationFailure` (`"Token provider failed: ..."`); call `initialize` again to retry. Later on, it fails only the request that needed the token, and a map upload retries it like a dropped connection.
+- The provider runs on a background thread and may suspend; a call that takes longer than 20 seconds fails. Requests made at the same time share one call.
+- `MultiSetTokenProvider` is a suspending interface, so implement it in Kotlin.
+- Calling `initialize` again with an equal provider keeps the token it gave, so build it once or make it a data class, as the samples' `TokenServerProvider` is.
+- This keeps the secret off the device, but a token still carries your account's rights until it expires. Put your token endpoint behind your own sign-in.
 
 ---
 
@@ -399,6 +428,19 @@ session.onLocalizationFailure = { error ->
 | `geoPose` | The whole geographic pose: position, orientation and frame, e.g. `WGS-84` / `Y-Up-ENU` |
 
 The geographic fields need a geo-referenced map. Every localization response is logged as the server sent it, under the `MultiSetSDK` tag (`Localization response:`).
+
+### Reading the GeoPose heading
+
+`geoPose.quaternion` is the camera's orientation in the frame named by `geoPose.frameName`. In `Y-Up-ENU`, the service's default (+X east, +Y up, +Z true north), the camera looks along its own +Z. The compass heading is the bearing of that direction, clockwise from north:
+
+```kotlin
+val q = result.geoPose?.quaternion ?: return
+val east = 2.0 * (q.x * q.z + q.w * q.y)
+val north = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+val heading = (Math.toDegrees(atan2(east, north)) + 360.0) % 360.0   // 0 = north, 90 = east
+```
+
+An `ENU` GeoPose (+X east, +Y north, +Z up) carries a camera that looks along its -Z instead. The sample's `geopose/GeoPoseMath.compassHeading` reads both frames, and takes the heading from the top of the image when the camera is aimed at the floor or the sky. Do not read the heading as "yaw about Y": that is the same number only while the phone is level. The longitude needs no mirroring.
 
 | `ObjectTrackingResult` | Description |
 |------------------------|-------------|
@@ -537,7 +579,7 @@ override fun onResume() { super.onResume(); mapping.resumeUploads() }
 | `Failed(message)` | Not retried on its own; `upload()` tries again |
 
 - Network errors, HTTP 408, 429 and 5xx are retried 5 times (10 to 160 s apart); after that the draft waits for `resumeUploads()`. A retry re-uploads to the map the first attempt created, so no second map is made.
-- Uploads use the SDK's M2M token. Refused credentials leave the draft waiting until the next successful authentication.
+- Uploads use the SDK's token, from the client credentials or your `tokenProvider`. Refused credentials leave the draft waiting until the next successful authentication; a token provider that fails is retried like a network error.
 - **Uploads run in your app's process.** There is no background service: if the process dies or `release()` is called, the queue survives and the upload restarts from the beginning after the next authentication. The SDK calls `resumeUploads()` after each successful `initialize()`; call it from `onResume` too.
 
 Scans are stored under `Context.noBackupFilesDir/multiset/mapping/`, so Auto Backup never copies them:
@@ -575,6 +617,8 @@ Single- or multi-frame with VPS-1 / VPS-2; automatic, manual and background loca
 
 **Map scanning:** a Mapping card on the home screen opens "Before you scan" tips (`MappingInstructionsActivity`), the landscape scan screen (`MapScanActivity`) with a timer, tracking guidance and live coverage points, and Draft Maps (`DraftMapsActivity`) with thumbnails and upload status. `mapping/ArMappingSource` implements `MultiSetMappingSource` over ARCore.
 
+**Geo Pose Map View** (`ui/geopose/GeoPoseMapActivity`): the localization session over the camera, and under it an OpenStreetMap sheet ([osmdroid](https://github.com/osmdroid/osmdroid), no API key) that plots every fix's GeoPose. The latest fix is an arrow along its compass heading, coloured by confidence; earlier fixes are dots on a dashed line; the device GPS is the blue track with its accuracy circle. A card gives the heading, latitude and longitude, altitude, confidence and map code. It uses every Localization setting and always asks for the GeoPose, whatever **Include Geo Response** says. For a map that is not geo-referenced it says the response has no GeoPose. The logic to copy is in `geopose/`; osmdroid is a dependency of the sample, not of the SDK.
+
 ---
 
 ## XREAL Aura sample (`:xreal-aura-vps`)
@@ -590,7 +634,7 @@ The same SDK on Android XR glasses, installed as `com.multiset.aura`. Jetpack XR
 Map scanning and the GPS hint are not part of this sample.
 
 - **Requires** an Android XR device with a world-facing camera, such as XREAL Aura, on Android 14+. Elsewhere it shows a "needs Android XR" message.
-- **Credentials** come from the same `multiset.properties`; rebuild after editing it.
+- **Credentials** come from the same `multiset.properties`, `MULTISET_TOKEN_SERVER_URL` included; rebuild after editing it.
 - **Permissions:** `CAMERA`, `android.permission.HEAD_TRACKING` and `android.permission.SCENE_UNDERSTANDING_COARSE`, each asked from a card in the panel.
 - **Full Space** is needed for 3D content; in Home Space the sample asks you to switch. Jetpack XR is pinned (`compose` 1.0.0-beta02; `runtime`, `scenecore`, `arcore` 1.0.0; `extensions-xr` 1.4.0).
 - **Recovery:** the sample re-localizes and re-tracks itself when head tracking resumes, so it turns off the sessions' own `relocalization` and `restartTracking`.
