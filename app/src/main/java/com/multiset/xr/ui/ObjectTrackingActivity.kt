@@ -31,6 +31,7 @@ import com.google.ar.sceneform.rendering.Renderable
 import com.google.ar.sceneform.ux.ArFragment
 import com.multiset.xr.ar.ArFrameSource
 import com.multiset.xr.ar.ObjectMeshRenderer
+import com.multiset.xr.ar.isObjectMeshLoading
 import com.multiset.xr.ar.reportArTracking
 import com.multiset.xr.R
 import com.multiset.xr.config.ObjectTrackingConfig
@@ -295,7 +296,7 @@ class ObjectTrackingActivity : AppCompatActivity() {
 
 
     private fun onSceneUpdate() {
-        val meshLoading = meshRenderer?.isLoading == true
+        val meshLoading = MultiSetSDK.isObjectMeshLoading(meshRenderer)
         binding.meshLoadingBar.isVisible = meshLoading
         meshToggle?.setAvailable(!meshLoading && meshRenderer?.hasMesh() == true)
         meshRenderer?.onFrame()

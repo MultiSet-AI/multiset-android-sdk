@@ -78,9 +78,7 @@ class ArFrameSource(
         val imgWidth = image.width
         val imgHeight = image.height
 
-        val orientation =
-            if (context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
-                DeviceOrientation.LANDSCAPE else DeviceOrientation.PORTRAIT
+        val orientation = context.deviceOrientation()
 
         // Move heavy YUV→Bitmap conversion off the Main thread; close image exactly once afterward
         val bitmap = try {
@@ -108,3 +106,8 @@ class ArFrameSource(
         )
     }
 }
+
+/** The screen orientation, as the SDK reads a frame. */
+fun Context.deviceOrientation(): DeviceOrientation =
+    if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) DeviceOrientation.LANDSCAPE
+    else DeviceOrientation.PORTRAIT

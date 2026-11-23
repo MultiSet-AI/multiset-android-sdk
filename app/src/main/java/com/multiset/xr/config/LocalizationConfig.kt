@@ -174,7 +174,7 @@ object LocalizationConfig {
     // ============================================================
 
     /** Search strategy, single-frame and multi-frame alike: VPS1 (standard) or VPS2 (deep search). */
-    var queryMode: QueryMode = QueryMode.VPS1
+    var queryMode: QueryMode = MultiSetSDKConfig.DEFAULT_QUERY_MODE
 
     // ============================================================
     // IMAGE QUALITY SETTINGS
@@ -214,7 +214,7 @@ object LocalizationConfig {
         showAlerts = true
         enableMeshVisualization = true
         imageQuality = 90
-        queryMode = QueryMode.VPS1
+        queryMode = MultiSetSDKConfig.DEFAULT_QUERY_MODE
         poseConsistencyCheck = MultiSetSDKConfig.DEFAULT_POSE_CONSISTENCY_CHECK
         poseConsistencyThreshold = 4f
         poseConsistencyYawThreshold = 25f

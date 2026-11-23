@@ -49,7 +49,8 @@ object ConfigStore {
     private const val L_SHOW_ALERTS = "loc_showAlerts"
     private const val L_MESH = "loc_meshVisualization"
     private const val L_IMAGE_QUALITY = "loc_imageQuality"
-    private const val L_QUERY_MODE = "loc_queryMode"
+    // Renamed when the default became VPS-2: every save wrote the old default as a choice
+    private const val L_QUERY_MODE = "loc_queryModeChoice"
     private const val L_POSE_CHECK = "loc_poseConsistencyCheck"
     private const val L_POSE_THRESHOLD = "loc_poseConsistencyThreshold"
     private const val L_POSE_YAW_THRESHOLD = "loc_poseConsistencyYawThreshold"

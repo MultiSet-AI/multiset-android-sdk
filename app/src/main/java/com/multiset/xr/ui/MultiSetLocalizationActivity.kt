@@ -37,20 +37,26 @@ import com.google.ar.sceneform.ux.ArFragment
 import com.multiset.sdk.MultiSetSDK
 import com.multiset.sdk.MultiSetSDKConfig
 import com.multiset.sdk.camera.ImageProcessor
+import com.multiset.sdk.model.AnchorPose
 import com.multiset.sdk.model.FalsePositiveCause
 import com.multiset.sdk.model.FalsePositiveInfo
 import com.multiset.sdk.model.GateRejection
 import com.multiset.sdk.model.LocalizationMode
 import com.multiset.sdk.model.LocalizationStage
+import com.multiset.sdk.model.Quat
 import com.multiset.sdk.model.RecoveryPhase
+import com.multiset.sdk.model.Vec3
 import com.multiset.sdk.session.LocalizationSession
 import com.multiset.sdk.source.GeoHintProvider
 import com.multiset.sdk.ui.MultiSetWatermark
 import com.multiset.xr.R
 import com.multiset.xr.ar.ArFrameSource
 import com.multiset.xr.ar.GizmoNode
+import com.multiset.xr.ar.MapAnchor
 import com.multiset.xr.ar.MapMeshLoads
 import com.multiset.xr.ar.MeshRenderer
+import com.multiset.xr.ar.deviceGeolocation
+import com.multiset.xr.ar.isMapMeshLoading
 import com.multiset.xr.ar.reportArTracking
 import com.multiset.xr.config.LocalizationConfig
 import com.multiset.xr.databinding.ActivityLocalizationBinding
@@ -62,6 +68,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 import com.multiset.sdk.model.TrackingState as SdkTrackingState
 
 class MultiSetLocalizationActivity : AppCompatActivity() {
@@ -82,6 +89,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
     private var frameSource: ArFrameSource? = null
     private val failureAlert = FailureAlert(com.multiset.xr.R.string.error_title_localization)
     private var gizmoNode: GizmoNode? = null
+    private var mapAnchor: MapAnchor? = null
     private var phoneAnimator: ObjectAnimator? = null
     private var meshRenderer: MeshRenderer? = null
     private val mapMeshes = MapMeshLoads()
@@ -203,10 +211,11 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
     private fun buildAndStartSession() {
         val source = ArFrameSource(arFragment, this, ImageProcessor()).also { frameSource = it }
 
-        gizmoNode = GizmoNode(this)
-        arFragment.arSceneView.scene.addChild(gizmoNode)
+        val gizmo = GizmoNode(this).also { gizmoNode = it }
+        arFragment.arSceneView.scene.addChild(gizmo)
         // Stays hidden until a pose exists; otherwise it floats in front of the camera at origin.
-        gizmoNode?.hide()
+        gizmo.hide()
+        mapAnchor = MapAnchor(gizmo)
 
         meshRenderer = MeshRenderer(this)
 
@@ -268,10 +277,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
                     val pos = result.position
                     val rot = result.rotation
-                    gizmoNode?.let { node ->
-                        node.localPosition = Vector3(pos[0], pos[1], pos[2])
-                        node.localRotation = Quaternion(rot[0], rot[1], rot[2], rot[3])
-                    }
+                    mapAnchor?.moveTo(AnchorPose(Vec3(pos[0], pos[1], pos[2]), Quat(rot[0], rot[1], rot[2], rot[3])))
                     isGizmoPlaced = true
                     applyGizmoVisibility()
 
@@ -289,6 +295,23 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
                     Log.d(TAG, "Localization success — map: ${result.mapCode}, confidence: ${result.confidence}")
                     loadMapMesh(result.mapCode)
+                }
+            }
+
+            onAlignmentChanged = { map, geo ->
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    if (map == null) mapAnchor?.alignmentCleared()
+                    // Read at the device right after the fix: the SDK's 1-sigma estimate, not GPS accuracy.
+                    val accuracy = if (geo != null) MultiSetSDK.deviceGeolocation(arFragment.arSceneView, mapAnchor)?.accuracy else null
+                    if (accuracy != null) {
+                        Log.d(TAG, String.format(
+                            Locale.US, "GeoAccuracy ±%.2f m horizontal, ±%.2f m vertical, ±%.1f° heading, trust %s",
+                            accuracy.horizontalMeters, accuracy.verticalMeters, accuracy.headingDegrees, map?.trust,
+                        ))
+                    } else {
+                        Log.d(TAG, "GeoAccuracy unavailable: ${localizationSession?.geoAlignmentAvailability}")
+                    }
                 }
             }
 
@@ -441,9 +464,11 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
 
 
     private fun onSceneUpdate() {
-        val meshLoading = mapMeshes.isLoading || meshRenderer?.isLoading == true
+        val meshLoading = MultiSetSDK.isMapMeshLoading(meshRenderer)
         binding.meshLoadingBar.isVisible = meshLoading
         meshToggle?.setAvailable(!meshLoading && meshRenderer?.hasMesh() == true)
+
+        mapAnchor?.onFrame()
 
         val frame = arFragment.arSceneView.arFrame ?: return
         val currentState = frame.camera.trackingState
@@ -550,10 +575,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
             // Hiding the gizmo takes the meshes off screen with it, but the renderer would keep
             // holding those models and hand them straight back when their maps are localized next.
             meshRenderer?.removeMesh()
-            gizmoNode?.let {
-                it.localPosition = Vector3.zero()
-                it.localRotation = Quaternion.identity()
-            }
+            mapAnchor?.reset()
             isGizmoPlaced = false
             isMapOutOfPlace = false
             applyGizmoVisibility()
@@ -663,6 +685,7 @@ class MultiSetLocalizationActivity : AppCompatActivity() {
         localizationSession = null
         dropMapMeshes()
         gizmoNode = null
+        mapAnchor = null
         meshRenderer?.release()
         meshRenderer = null
         locationProvider?.stop()

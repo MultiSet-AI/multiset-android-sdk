@@ -12,7 +12,7 @@ import com.multiset.sdk.model.QueryMode
 
 data class LocalizationConfig(
     val mode: LocalizationMode = MultiSetSDKConfig.DEFAULT_LOCALIZATION_MODE,
-    val queryMode: QueryMode = QueryMode.VPS1,
+    val queryMode: QueryMode = MultiSetSDKConfig.DEFAULT_QUERY_MODE,
     val autoLocalize: Boolean = true,
     val backgroundLocalization: Boolean = true,
     val backgroundIntervalSeconds: Int = 30,

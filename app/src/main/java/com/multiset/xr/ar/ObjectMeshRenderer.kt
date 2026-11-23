@@ -100,10 +100,7 @@ class ObjectMeshRenderer(
 
         val job = rendererScope.launch(start = CoroutineStart.LAZY) {
             try {
-                val glb = withContext(Dispatchers.IO) {
-                    val fileUrl = meshRepository.fetchObjectMeshMetadata(objectCode).fileUrl
-                    if (fileUrl.isNullOrBlank()) null else meshRepository.downloadMesh(fileUrl)
-                }
+                val glb = withContext(Dispatchers.IO) { meshRepository.loadObjectMesh(objectCode) }
                 if (glb == null) {
                     Log.e(TAG, "No mesh URL for object $objectCode")
                     return@launch

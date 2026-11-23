@@ -260,10 +260,8 @@ class ObjectTrackingController(
             return cached
         }
         val repository = meshRepository ?: MultiSetSDK.meshRepository().also { meshRepository = it }
-        val glb = withContext(Dispatchers.IO) {
-            repository.fetchObjectMeshMetadata(code).fileUrl?.let { repository.downloadMesh(it) }
-        }
-        // Neither SDK call is cancellable; a fetch superseded by a reset must not keep its mesh.
+        val glb = withContext(Dispatchers.IO) { repository.loadObjectMesh(code) }
+        // The SDK call is not cancellable; a fetch superseded by a reset must not keep its mesh.
         currentCoroutineContext().ensureActive()
         if (glb == null) return null
         Log.i(TAG, "Mesh for $code downloaded: ${glb.size / 1024} KiB in ${SystemClock.elapsedRealtime() - started} ms")

@@ -13,10 +13,13 @@ object ConfigCodec {
     const val LOCALIZATION_PREFIX = "loc_"
     const val OBJECT_TRACKING_PREFIX = "obj_"
 
+    // Renamed when the default became VPS-2: every save wrote the old default as a choice
+    private const val QUERY_MODE = "queryModeChoice"
+
     fun encode(config: LocalizationConfig): Map<String, Any> = with(config) {
         mapOf(
             "mode" to mode.name,
-            "queryMode" to queryMode.name,
+            QUERY_MODE to queryMode.name,
             "autoLocalize" to autoLocalize,
             "backgroundLocalization" to backgroundLocalization,
             "backgroundIntervalSeconds" to backgroundIntervalSeconds,
@@ -59,7 +62,7 @@ object ConfigCodec {
         val d = LocalizationConfig()
         return LocalizationConfig(
             mode = read.enum("mode", d.mode),
-            queryMode = read.enum("queryMode", d.queryMode),
+            queryMode = read.enum(QUERY_MODE, d.queryMode),
             autoLocalize = read.boolean("autoLocalize", d.autoLocalize),
             backgroundLocalization = read.boolean("backgroundLocalization", d.backgroundLocalization),
             backgroundIntervalSeconds = read.int("backgroundIntervalSeconds", d.backgroundIntervalSeconds),
